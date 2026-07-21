@@ -27,9 +27,14 @@
       <div class="ult-row">
         <div class="bar ult-bar"><div id="ult-fill" class="fill ult-fill"></div><span class="bar-text">Echo Blast (E)</span></div>
       </div>
+      <div class="ult-row">
+        <div class="bar rocket-bar"><div id="rocket-fill" class="fill rocket-fill"></div><span class="bar-text">🚀 Fire RPG (R)</span></div>
+      </div>
     </div>
 
     <div id="action-buttons">
+      <button id="shop-btn" title="Open the coin shop">🛒 Shop</button>
+      <button id="autoattack-btn" title="Toggle auto-attack on/off (T)">🦇 Auto-Attack: ON</button>
       <button id="upgrade-btn" title="Open upgrade menu (U)">📖 Upgrade (U)</button>
       <button id="help-btn" title="Show controls / directions (H)">❓ How to Play (H)</button>
     </div>
@@ -49,14 +54,36 @@
         <h2>How to Play</h2>
         <ul class="controls-list">
           <li><b>W A S D</b> or <b>Arrow Keys</b> — Fly around</li>
-          <li><b>Auto-attack</b> — Your bat automatically bites the nearest enemy within range</li>
+          <li><b>Auto-attack</b> — Your bat automatically bites the nearest enemy within range (toggle it on/off with the <b>T</b> key or the Auto-Attack button)</li>
+          <li><b>Click an enemy</b> — Manually attack any enemy within your attack range, even with auto-attack turned off</li>
+          <li><b>R</b> — Fire an RPG (rocket-propelled grenade) at the nearest enemy for a big explosive hit (has a cooldown, shown in the orange bar)</li>
           <li><b>E</b> — Echo Blast: AoE ultimate that damages all nearby enemies (has a cooldown, shown in the teal bar)</li>
           <li><b>U</b> — Open the Upgrade menu to spend Skill Points on stats</li>
           <li><b>H</b> — Open this Help screen</li>
+          <li><b>P</b> — Open the Coin Shop to buy skins and permanent upgrades with coins</li>
         </ul>
         <h3>Goal</h3>
         <p class="stat-desc">Survive endless waves of hawks, spiders and hunters. Defeating enemies grants XP (levels you up and grants Skill Points) and gold. Spend Skill Points in the Upgrade menu on Vitality, Strength, Agility, Focus and Echo Power to grow stronger and push further.</p>
         <button id="close-help">Close (H)</button>
+      </div>
+    </div>
+
+    <!-- Coin Shop Panel -->
+    <div id="shop-panel" class="hidden">
+      <div class="panel-inner shop-inner">
+        <h2>🛒 Coin Shop <span id="shop-coins">0</span> coins</h2>
+        <p class="stat-desc">Earn coins by defeating enemies. Every skin and permanent upgrade costs <b>100 coins</b>. Permanent upgrades apply forever, on every run.</p>
+
+        <h3>Bat Skins</h3>
+        <div id="bat-skin-list" class="shop-grid"></div>
+
+        <h3>RPG Launcher Skins</h3>
+        <div id="rpg-skin-list" class="shop-grid"></div>
+
+        <h3>Permanent Upgrades</h3>
+        <div id="perm-upgrade-list"></div>
+
+        <button id="close-shop">Close</button>
       </div>
     </div>
 
@@ -67,11 +94,14 @@
         <p>Survive the night. Devour prey for XP &amp; gold. Level up and spend skill points to grow stronger.</p>
         <ul class="controls-list">
           <li><b>WASD / Arrows</b> — Fly</li>
-          <li><b>Auto-attack</b> nearest enemy in range</li>
+          <li><b>Auto-attack</b> nearest enemy in range (toggle with <b>T</b>)</li>
+          <li><b>Click an enemy</b> in range to attack it manually</li>
+          <li><b>R</b> — Fire an RPG rocket (big explosive hit)</li>
           <li><b>E</b> — Echo Blast (AoE ultimate)</li>
           <li><b>U</b> — Open upgrade menu</li>
         </ul>
         <button id="start-btn">Start Game</button>
+        <button id="shop-btn-start">🛒 Coin Shop</button>
         <p class="best-score">Best Wave: <span id="best-wave">1</span></p>
       </div>
     </div>
@@ -82,6 +112,7 @@
         <h1>You Fell 🦇</h1>
         <p id="final-stats"></p>
         <button id="restart-btn">Try Again</button>
+        <button id="shop-btn-gameover">🛒 Coin Shop</button>
       </div>
     </div>
   </div>
