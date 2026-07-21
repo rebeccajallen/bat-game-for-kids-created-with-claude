@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Bat RPG - Night Survivor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-wrap">
+    <canvas id="game" width="960" height="600"></canvas>
+
+    <!-- HUD -->
+    <div id="hud">
+      <div class="bar-row">
+        <div class="bar hp-bar"><div id="hp-fill" class="fill hp-fill"></div><span id="hp-text" class="bar-text"></span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar xp-bar"><div id="xp-fill" class="fill xp-fill"></div><span id="xp-text" class="bar-text"></span></div>
+      </div>
+      <div class="stat-row">
+        <span id="level-text">Lv 1</span>
+        <span id="gold-text">🪙 0</span>
+        <span id="wave-text">Wave 1</span>
+        <span id="sp-text" class="sp-badge" style="display:none">Skill Points: 0</span>
+      </div>
+      <div class="ult-row">
+        <div class="bar ult-bar"><div id="ult-fill" class="fill ult-fill"></div><span class="bar-text">Echo Blast (E)</span></div>
+      </div>
+    </div>
+
+    <div id="action-buttons">
+      <button id="upgrade-btn" title="Open upgrade menu (U)">📖 Upgrade (U)</button>
+      <button id="help-btn" title="Show controls / directions (H)">❓ How to Play (H)</button>
+    </div>
+
+    <!-- RPG Upgrade Panel -->
+    <div id="rpg-panel" class="hidden">
+      <div class="panel-inner">
+        <h2>Bat Powers <span id="panel-sp">0</span> points available</h2>
+        <div id="stat-list"></div>
+        <button id="close-panel">Close (U)</button>
+      </div>
+    </div>
+
+    <!-- Help / Directions Panel -->
+    <div id="help-panel" class="hidden">
+      <div class="panel-inner">
+        <h2>How to Play</h2>
+        <ul class="controls-list">
+          <li><b>W A S D</b> or <b>Arrow Keys</b> — Fly around</li>
+          <li><b>Auto-attack</b> — Your bat automatically bites the nearest enemy within range</li>
+          <li><b>E</b> — Echo Blast: AoE ultimate that damages all nearby enemies (has a cooldown, shown in the teal bar)</li>
+          <li><b>U</b> — Open the Upgrade menu to spend Skill Points on stats</li>
+          <li><b>H</b> — Open this Help screen</li>
+        </ul>
+        <h3>Goal</h3>
+        <p class="stat-desc">Survive endless waves of hawks, spiders and hunters. Defeating enemies grants XP (levels you up and grants Skill Points) and gold. Spend Skill Points in the Upgrade menu on Vitality, Strength, Agility, Focus and Echo Power to grow stronger and push further.</p>
+        <button id="close-help">Close (H)</button>
+      </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="overlay">
+      <div class="overlay-inner">
+        <h1>🦇 Bat RPG</h1>
+        <p>Survive the night. Devour prey for XP &amp; gold. Level up and spend skill points to grow stronger.</p>
+        <ul class="controls-list">
+          <li><b>WASD / Arrows</b> — Fly</li>
+          <li><b>Auto-attack</b> nearest enemy in range</li>
+          <li><b>E</b> — Echo Blast (AoE ultimate)</li>
+          <li><b>U</b> — Open upgrade menu</li>
+        </ul>
+        <button id="start-btn">Start Game</button>
+        <p class="best-score">Best Wave: <span id="best-wave">1</span></p>
+      </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameover-screen" class="overlay hidden">
+      <div class="overlay-inner">
+        <h1>You Fell 🦇</h1>
+        <p id="final-stats"></p>
+        <button id="restart-btn">Try Again</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

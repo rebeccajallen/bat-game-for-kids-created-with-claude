@@ -1,0 +1,282 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #05060a;
+  color: #eae6ff;
+  font-family: 'Segoe UI', Tahoma, Verdana, sans-serif;
+  overflow: hidden;
+  height: 100%;
+}
+
+#game-wrap {
+  position: relative;
+  width: 960px;
+  height: 600px;
+  margin: 20px auto;
+  border: 3px solid #2c2440;
+  border-radius: 10px;
+  box-shadow: 0 0 40px rgba(120, 80, 255, 0.35);
+  overflow: hidden;
+  background: #05060a;
+}
+
+canvas {
+  display: block;
+  background: #05060a;
+}
+
+/* HUD */
+#hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.bar-row {
+  margin-bottom: 4px;
+}
+
+.bar {
+  position: relative;
+  width: 300px;
+  height: 18px;
+  background: rgba(20, 15, 35, 0.75);
+  border: 1px solid #3a2f5c;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  width: 0%;
+  transition: width 0.15s linear;
+}
+
+.hp-fill { background: linear-gradient(90deg, #7a1030, #e0304f); }
+.xp-fill { background: linear-gradient(90deg, #3a2c8f, #8a5cf5); }
+.ult-fill { background: linear-gradient(90deg, #0f6b6b, #33d9c1); }
+
+.bar-text {
+  position: absolute;
+  top: 0;
+  left: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+
+.stat-row {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  margin: 6px 0;
+  text-shadow: 0 0 4px #000;
+}
+
+.sp-badge {
+  background: #5a2fc9;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-weight: bold;
+  animation: pulse 1.4s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0px #8a5cf5; }
+  50% { box-shadow: 0 0 10px #8a5cf5; }
+}
+
+.ult-row {
+  margin-top: 4px;
+}
+
+/* Action buttons (Upgrade / Help) */
+#action-buttons {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+#upgrade-btn, #help-btn {
+  background: #2c2440;
+  color: #eae6ff;
+  border: 1px solid #5a2fc9;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#upgrade-btn:hover, #help-btn:hover {
+  background: #3a2f5c;
+}
+
+#help-btn {
+  border-color: #33d9c1;
+}
+
+/* RPG / Help Panels */
+#rpg-panel, #help-panel {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 2, 8, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+#rpg-panel.hidden, #help-panel.hidden {
+  display: none;
+}
+
+.panel-inner {
+  background: #100c1e;
+  border: 2px solid #5a2fc9;
+  border-radius: 10px;
+  padding: 20px 26px;
+  width: 560px;
+  max-width: 90%;
+  box-shadow: 0 0 30px rgba(138, 92, 245, 0.4);
+}
+
+.panel-inner h2 {
+  margin-top: 0;
+  font-size: 18px;
+}
+
+.panel-inner h3 {
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: #33d9c1;
+}
+
+#help-panel .controls-list {
+  font-size: 13px;
+}
+
+#panel-sp {
+  color: #33d9c1;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #2c2440;
+  gap: 10px;
+}
+
+.stat-item:last-child {
+  border-bottom: none;
+}
+
+.stat-name {
+  font-weight: bold;
+  min-width: 110px;
+}
+
+.stat-desc {
+  font-size: 12px;
+  color: #b7aee0;
+  flex: 1;
+}
+
+.stat-level {
+  min-width: 30px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.stat-plus {
+  background: #33d9c1;
+  color: #05060a;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.stat-plus:disabled {
+  background: #3a2f5c;
+  color: #766e94;
+  cursor: not-allowed;
+}
+
+#close-panel, #close-help {
+  margin-top: 16px;
+  background: #5a2fc9;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Overlays */
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 2, 8, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  text-align: center;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay-inner {
+  max-width: 480px;
+  padding: 20px;
+}
+
+.overlay-inner h1 {
+  margin-bottom: 6px;
+}
+
+.controls-list {
+  text-align: left;
+  display: inline-block;
+  margin: 12px auto;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+#start-btn, #restart-btn {
+  background: #5a2fc9;
+  color: #fff;
+  border: none;
+  padding: 10px 22px;
+  font-size: 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+#start-btn:hover, #restart-btn:hover {
+  background: #7a4de0;
+}
+
+.best-score {
+  font-size: 13px;
+  color: #b7aee0;
+}
