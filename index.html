@@ -40,6 +40,17 @@
       <button id="autoattack-btn" title="Toggle auto-attack on/off (T)">🦇 Auto-Attack: ON</button>
       <button id="upgrade-btn" title="Open upgrade menu (U)">📖 Upgrade (U)</button>
       <button id="help-btn" title="Show controls / directions (H)">❓ How to Play (H)</button>
+      <button id="bestiary-btn" title="Open the creature bestiary (B)">🐾 Bestiary (B)</button>
+    </div>
+
+    <!-- Bestiary Panel -->
+    <div id="bestiary-panel" class="hidden">
+      <div class="panel-inner shop-inner">
+        <h2>🐾 Bestiary</h2>
+        <p class="stat-desc">Every creature that hunts you in the night, identified.</p>
+        <div id="bestiary-list" class="shop-grid"></div>
+        <button id="close-bestiary">Close (B)</button>
+      </div>
     </div>
 
     <!-- Pause Panel -->
@@ -78,6 +89,7 @@
           <li><b>U</b> — Open the Upgrade menu to spend Skill Points on stats</li>
           <li><b>H</b> — Open this Help screen</li>
           <li><b>P</b> — Open the Coin Shop to buy skins and permanent upgrades with coins</li>
+          <li><b>B</b> — Open the Bestiary to identify every creature you'll face</li>
           <li><b>Esc</b> — Pause the game (or close whichever menu is open)</li>
         </ul>
         <h3>Wormholes</h3>
@@ -94,7 +106,7 @@
     <div id="shop-panel" class="hidden">
       <div class="panel-inner shop-inner">
         <h2>🛒 Coin Shop <span id="shop-coins">0</span> coins</h2>
-        <p class="stat-desc">Earn coins by defeating enemies. Every skin and permanent upgrade costs <b>100 coins</b>. Permanent upgrades apply forever, on every run.</p>
+        <p class="stat-desc">Earn coins by defeating enemies. Every skin and permanent upgrade costs <b>100 coins</b>. Permanent upgrades apply forever, on every run. Special Styles are premium whole-game visual filters that cost more.</p>
 
         <h3>Bat Skins</h3>
         <div id="bat-skin-list" class="shop-grid"></div>
@@ -104,6 +116,9 @@
 
         <h3>Permanent Upgrades</h3>
         <div id="perm-upgrade-list"></div>
+
+        <h3>Special Styles</h3>
+        <div id="special-style-list"></div>
 
         <button id="close-shop">Close</button>
       </div>

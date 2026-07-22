@@ -5,7 +5,7 @@
 // =======================================================================
 
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d');
 const W = canvas.width;
 const H = canvas.height;
 
@@ -46,6 +46,7 @@ const shopCoinsEl = document.getElementById('shop-coins');
 const batSkinListEl = document.getElementById('bat-skin-list');
 const rpgSkinListEl = document.getElementById('rpg-skin-list');
 const permUpgradeListEl = document.getElementById('perm-upgrade-list');
+const specialStyleListEl = document.getElementById('special-style-list');
 const pauseBtn = document.getElementById('pause-btn');
 const pausePanel = document.getElementById('pause-panel');
 const resumeBtn = document.getElementById('resume-btn');
@@ -55,6 +56,10 @@ const pauseHelpBtn = document.getElementById('pause-help-btn');
 const pauseWaveEl = document.getElementById('pause-wave');
 const pauseLevelEl = document.getElementById('pause-level');
 const pauseCoinsEl = document.getElementById('pause-coins');
+const bestiaryBtn = document.getElementById('bestiary-btn');
+const bestiaryPanel = document.getElementById('bestiary-panel');
+const closeBestiaryBtn = document.getElementById('close-bestiary');
+const bestiaryListEl = document.getElementById('bestiary-list');
 
 // ---------- Base stats (before skill points) ----------
 const BASE = {
@@ -148,11 +153,19 @@ const PERMANENT_UPGRADES = {
   focusPerm: { name: 'Night Vision', desc: '+20 Attack Range on every run, forever', cost: SHOP_ITEM_COST, apply: () => { BASE.range += 20; } },
 };
 
+// Premium, whole-game visual filters. Much pricier than a single skin since
+// they transform the entire look of the game, not just one sprite.
+const SPECIAL_STYLES = {
+  pixel: { name: '🕹️ Pixel Style', desc: 'Retro 32-bit pixelation filter over the entire game', cost: 1000 },
+};
+
 let ownedBatSkins = loadJSON('batrpg_owned_bat_skins', ['classic']);
 let equippedBatSkin = localStorage.getItem('batrpg_equipped_bat_skin') || 'classic';
 let ownedRpgSkins = loadJSON('batrpg_owned_rpg_skins', ['classic']);
 let equippedRpgSkin = localStorage.getItem('batrpg_equipped_rpg_skin') || 'classic';
 let ownedPermUpgrades = loadJSON('batrpg_owned_perm_upgrades', []);
+let ownedSpecialStyles = loadJSON('batrpg_owned_special_styles', []);
+let pixelStyleEnabled = localStorage.getItem('batrpg_pixel_style_enabled') === 'true';
 
 // Apply any previously-purchased permanent upgrades to the base stats once at load.
 ownedPermUpgrades.forEach((id) => {
@@ -183,7 +196,7 @@ bestWaveEl.textContent = bestWave;
 // with its own night-sky palette, and the bat gets a small reward.
 const WORLDS = [
   { name: 'Midnight Forest', skyTop: '#1d1636', skyMid: '#120c22', skyBottom: '#07050f', mist: '200,200,255', moon: '#f0edd8' },
-  { name: 'Blood Moon Realm', skyTop: '#3d1414', skyMid: '#220b12', skyBottom: '#0f0508', mist: '255,150,150', moon: '#ff8a8a', tint: 'rgba(120,20,20,0.12)' },
+  { name: 'Blood Moon Realm', skyTop: '#3d1414', skyMid: '#220b12', skyBottom: '#0f0508', mist: '255,150,150', moon: '#ff8a8a', tint: 'rgba(120,20,20,0.12)', moonX: 0.5, moonY: 60, moonR: 58 },
   { name: 'Toxic Swamp', skyTop: '#123420', skyMid: '#0b2214', skyBottom: '#050f08', mist: '150,255,180', moon: '#c8ff9a', tint: 'rgba(30,120,50,0.12)' },
   { name: 'Crystal Cavern', skyTop: '#132a3d', skyMid: '#0b1b2a', skyBottom: '#050d14', mist: '160,220,255', moon: '#9adcff', tint: 'rgba(40,110,170,0.12)' },
   { name: 'Golden Dusk', skyTop: '#3a2f10', skyMid: '#231b0a', skyBottom: '#100c04', mist: '255,220,150', moon: '#ffe08a', tint: 'rgba(150,110,20,0.1)' },
@@ -462,6 +475,7 @@ window.addEventListener('keydown', (e) => {
   if (key === 'u') toggleRpgPanel();
   if (key === 'h') toggleHelpPanel();
   if (key === 'p') toggleShopPanel();
+  if (key === 'b') toggleBestiaryPanel();
   if (key === 'e') tryUltimate();
   if (key === 'r') tryFireRpg();
   if (key === 't') setAutoAttack(!autoAttackEnabled);
@@ -470,6 +484,7 @@ window.addEventListener('keydown', (e) => {
     if (rpgPanelOpen) setRpgPanel(false);
     else if (helpPanelOpen) setHelpPanel(false);
     else if (shopPanelOpen) setShopPanel(false);
+    else if (bestiaryPanelOpen) setBestiaryPanel(false);
     else togglePausePanel();
   }
 });
@@ -491,6 +506,8 @@ resumeBtn.addEventListener('click', () => setPausePanel(false));
 pauseUpgradeBtn.addEventListener('click', () => { setPausePanel(false); toggleRpgPanel(); });
 pauseShopBtn.addEventListener('click', () => { setPausePanel(false); toggleShopPanel(); });
 pauseHelpBtn.addEventListener('click', () => { setPausePanel(false); toggleHelpPanel(); });
+bestiaryBtn.addEventListener('click', toggleBestiaryPanel);
+closeBestiaryBtn.addEventListener('click', () => setBestiaryPanel(false));
 
 canvas.addEventListener('click', (e) => {
   if (state !== 'playing') return;
@@ -581,18 +598,19 @@ restartBtn.addEventListener('click', () => {
   startWave();
 });
 
-// The Upgrade, Help, Shop and Pause panels all pause the game while open,
-// and are mutually exclusive (opening one closes the others). Game state
-// only resumes to 'playing' once every panel is closed. The Shop is also
-// reachable from the start/game-over screens, where state isn't touched.
+// The Upgrade, Help, Shop, Pause and Bestiary panels all pause the game
+// while open, and are mutually exclusive (opening one closes the others).
+// Game state only resumes to 'playing' once every panel is closed. The Shop
+// is also reachable from the start/game-over screens, where state isn't touched.
 let rpgPanelOpen = false;
 let helpPanelOpen = false;
 let shopPanelOpen = false;
 let pausePanelOpen = false;
+let bestiaryPanelOpen = false;
 
 function syncPauseState() {
   if (state !== 'playing' && state !== 'paused') return;
-  state = (rpgPanelOpen || helpPanelOpen || shopPanelOpen || pausePanelOpen) ? 'paused' : 'playing';
+  state = (rpgPanelOpen || helpPanelOpen || shopPanelOpen || pausePanelOpen || bestiaryPanelOpen) ? 'paused' : 'playing';
 }
 
 function setRpgPanel(open) {
@@ -607,6 +625,7 @@ function toggleRpgPanel() {
     if (helpPanelOpen) setHelpPanel(false);
     if (shopPanelOpen) setShopPanel(false);
     if (pausePanelOpen) setPausePanel(false);
+    if (bestiaryPanelOpen) setBestiaryPanel(false);
   }
   setRpgPanel(!rpgPanelOpen);
 }
@@ -622,6 +641,7 @@ function toggleHelpPanel() {
     if (rpgPanelOpen) setRpgPanel(false);
     if (shopPanelOpen) setShopPanel(false);
     if (pausePanelOpen) setPausePanel(false);
+    if (bestiaryPanelOpen) setBestiaryPanel(false);
   }
   setHelpPanel(!helpPanelOpen);
 }
@@ -638,6 +658,7 @@ function toggleShopPanel() {
     if (rpgPanelOpen) setRpgPanel(false);
     if (helpPanelOpen) setHelpPanel(false);
     if (pausePanelOpen) setPausePanel(false);
+    if (bestiaryPanelOpen) setBestiaryPanel(false);
   }
   setShopPanel(!shopPanelOpen);
 }
@@ -658,8 +679,26 @@ function togglePausePanel() {
     if (rpgPanelOpen) setRpgPanel(false);
     if (helpPanelOpen) setHelpPanel(false);
     if (shopPanelOpen) setShopPanel(false);
+    if (bestiaryPanelOpen) setBestiaryPanel(false);
   }
   setPausePanel(!pausePanelOpen);
+}
+
+function setBestiaryPanel(open) {
+  bestiaryPanelOpen = open;
+  bestiaryPanel.classList.toggle('hidden', !open);
+  if (open) renderBestiary();
+  syncPauseState();
+}
+function toggleBestiaryPanel() {
+  if (state !== 'playing' && state !== 'paused') return;
+  if (!bestiaryPanelOpen) {
+    if (rpgPanelOpen) setRpgPanel(false);
+    if (helpPanelOpen) setHelpPanel(false);
+    if (shopPanelOpen) setShopPanel(false);
+    if (pausePanelOpen) setPausePanel(false);
+  }
+  setBestiaryPanel(!bestiaryPanelOpen);
 }
 
 function renderShop() {
@@ -745,6 +784,102 @@ function renderShop() {
       });
     }
     permUpgradeListEl.appendChild(row);
+  });
+
+  specialStyleListEl.innerHTML = '';
+  Object.entries(SPECIAL_STYLES).forEach(([id, style]) => {
+    const owned = ownedSpecialStyles.includes(id);
+    const row = document.createElement('div');
+    row.className = 'perm-item';
+    const enabled = id === 'pixel' && pixelStyleEnabled;
+    let btnLabel = `Buy (${style.cost})`;
+    if (owned) btnLabel = enabled ? 'Enabled (click to disable)' : 'Disabled (click to enable)';
+    row.innerHTML = `
+      <span class="stat-name">${style.name}</span>
+      <span class="stat-desc">${style.desc}</span>
+      <button class="perm-buy ${enabled ? 'owned' : ''}" ${!owned && coins < style.cost ? 'disabled' : ''}>${btnLabel}</button>
+    `;
+    row.querySelector('.perm-buy').addEventListener('click', () => {
+      if (!owned) {
+        if (coins < style.cost) return;
+        coins -= style.cost;
+        saveCoins();
+        ownedSpecialStyles = [...ownedSpecialStyles, id];
+        saveJSON('batrpg_owned_special_styles', ownedSpecialStyles);
+        if (id === 'pixel') {
+          pixelStyleEnabled = true;
+          localStorage.setItem('batrpg_pixel_style_enabled', 'true');
+        }
+      } else if (id === 'pixel') {
+        pixelStyleEnabled = !pixelStyleEnabled;
+        localStorage.setItem('batrpg_pixel_style_enabled', String(pixelStyleEnabled));
+      }
+      renderShop();
+    });
+    specialStyleListEl.appendChild(row);
+  });
+}
+
+// Renders a creature's actual in-game sprite to a small offscreen canvas and
+// returns it as a data URL, so the Bestiary shows the real art instead of a
+// separate set of icons that could drift out of sync with the game.
+function renderCreatureIcon(type, color, radius) {
+  const off = document.createElement('canvas');
+  off.width = 90;
+  off.height = 90;
+  const offCtx = off.getContext('2d');
+  const savedCtx = ctx;
+  ctx = offCtx;
+  const fakeEnemy = { x: 45, y: 55, radius, color, facing: 1, moveAngle: -Math.PI / 2, animPhase: 0.6 };
+  if (type === 'hawk') drawHawk(fakeEnemy);
+  else if (type === 'hunter') drawHunter(fakeEnemy);
+  else drawSpider(fakeEnemy);
+  ctx = savedCtx;
+  return off.toDataURL();
+}
+
+const BESTIARY_ENTRIES = {
+  hawk: {
+    label: 'Hawk',
+    desc: 'A swift diving bird. Weak and low on health, but fast enough to close the distance quickly.',
+  },
+  spider: {
+    label: 'Spider',
+    desc: 'A tough, many-legged crawler. Slow-moving but has a lot of health to chew through.',
+  },
+  hunter: {
+    label: 'Hunter',
+    desc: 'A cloaked, clawed stalker. Well-rounded stats and the hardest-hitting of the three.',
+  },
+};
+
+function renderBestiary() {
+  bestiaryListEl.innerHTML = '';
+  Object.entries(ENEMY_TYPES).forEach(([type, t]) => {
+    const entry = BESTIARY_ENTRIES[type];
+    const card = document.createElement('div');
+    card.className = 'creature-card';
+    const icon = document.createElement('img');
+    icon.className = 'creature-icon';
+    icon.src = renderCreatureIcon(type, t.color, 34);
+    const name = document.createElement('div');
+    name.className = 'creature-name';
+    name.textContent = entry.label;
+    const desc = document.createElement('div');
+    desc.className = 'creature-desc';
+    desc.textContent = entry.desc;
+    const stats = document.createElement('div');
+    stats.className = 'creature-stats';
+    stats.innerHTML = `
+      <span>❤️ ${t.hpMult}x</span>
+      <span>⚔️ ${t.dmgMult}x</span>
+      <span>💨 ${t.speedMult}x</span>
+    `;
+    card.appendChild(icon);
+    card.appendChild(name);
+    card.appendChild(desc);
+    card.appendChild(stats);
+    bestiaryListEl.appendChild(card);
   });
 }
 
@@ -1184,8 +1319,11 @@ function drawBackground() {
   }
   ctx.globalAlpha = 1;
 
-  // moon with soft glow halo and craters, tinted per-world
-  const moonX = W - 80, moonY = 80, moonR = 40;
+  // moon with soft glow halo and craters, tinted and positioned per-world
+  const moonX = world.moonX !== undefined ? W * world.moonX : W - 80;
+  const moonY = world.moonY !== undefined ? world.moonY : 80;
+  const moonR = world.moonR !== undefined ? world.moonR : 40;
+  const moonScale = moonR / 40;
   const glow = ctx.createRadialGradient(moonX, moonY, moonR * 0.6, moonX, moonY, moonR * 2.4);
   glow.addColorStop(0, 'rgba(240,237,216,0.32)');
   glow.addColorStop(1, 'rgba(240,237,216,0)');
@@ -1201,9 +1339,9 @@ function drawBackground() {
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.fillStyle = 'rgba(180,175,150,0.55)';
-  ctx.beginPath(); ctx.arc(moonX - 12, moonY - 9, 6, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(moonX + 11, moonY + 10, 4.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(moonX + 3, moonY - 17, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX - 12 * moonScale, moonY - 9 * moonScale, 6 * moonScale, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX + 11 * moonScale, moonY + 10 * moonScale, 4.5 * moonScale, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX + 3 * moonScale, moonY - 17 * moonScale, 3 * moonScale, 0, Math.PI * 2); ctx.fill();
 
   // ground scenery: rocks, bushes and grass tufts scattered across the map
   scenery.forEach((s) => {
@@ -1300,25 +1438,28 @@ function drawMistLayer() {
   // Each cloud is several soft puffs orbiting its center at different radii/
   // speeds, so the whole thing churns and swirls like a real drifting cloud
   // instead of just sliding across the screen as one flat blob.
-  mist.forEach((m) => {
-    m.puffs.forEach((puff) => {
-      const angle = puff.angle + m.phase * puff.spin;
-      const dist = puff.dist * m.radius;
-      const px = m.x + Math.cos(angle) * dist;
-      const py = m.y + Math.sin(angle) * dist * 0.55; // flatten vertically, cloud-like
-      const pulse = 0.85 + 0.15 * Math.sin(t * 1.1 + puff.pulseOffset);
-      const size = puff.size * m.radius * pulse;
+  // Skipped in the Blood Moon Realm, which stays clear of drifting mist.
+  if (currentWorldIndex !== 1) {
+    mist.forEach((m) => {
+      m.puffs.forEach((puff) => {
+        const angle = puff.angle + m.phase * puff.spin;
+        const dist = puff.dist * m.radius;
+        const px = m.x + Math.cos(angle) * dist;
+        const py = m.y + Math.sin(angle) * dist * 0.55; // flatten vertically, cloud-like
+        const pulse = 0.85 + 0.15 * Math.sin(t * 1.1 + puff.pulseOffset);
+        const size = puff.size * m.radius * pulse;
 
-      const g = ctx.createRadialGradient(px, py, 0, px, py, size);
-      g.addColorStop(0, `rgba(${world.mist},${m.opacity})`);
-      g.addColorStop(0.7, `rgba(${world.mist},${m.opacity * 0.5})`);
-      g.addColorStop(1, `rgba(${world.mist},0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(px, py, size, 0, Math.PI * 2);
-      ctx.fill();
+        const g = ctx.createRadialGradient(px, py, 0, px, py, size);
+        g.addColorStop(0, `rgba(${world.mist},${m.opacity})`);
+        g.addColorStop(0.7, `rgba(${world.mist},${m.opacity * 0.5})`);
+        g.addColorStop(1, `rgba(${world.mist},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(px, py, size, 0, Math.PI * 2);
+        ctx.fill();
+      });
     });
-  });
+  }
 
   // Low, wavy ground-fog banks - a spooky forest-floor mist unique to Midnight Forest
   if (currentWorldIndex === 0) {
@@ -1814,6 +1955,25 @@ function drawWormhole(w) {
   ctx.restore();
 }
 
+// ---------- 32-Bit Style (premium 1000-coin visual filter) ----------
+// Downsamples the whole rendered frame to a tiny offscreen canvas, then
+// scales it back up with smoothing disabled, producing a subtle retro
+// 32-bit-era pixelation effect over the entire game (fine detail, just a
+// light crispness rather than an obviously blocky look).
+const PIXEL_SCALE = 2;
+const pixelCanvas = document.createElement('canvas');
+pixelCanvas.width = Math.ceil(W / PIXEL_SCALE);
+pixelCanvas.height = Math.ceil(H / PIXEL_SCALE);
+const pixelCtx = pixelCanvas.getContext('2d');
+
+function applyPixelStyle() {
+  pixelCtx.clearRect(0, 0, pixelCanvas.width, pixelCanvas.height);
+  pixelCtx.drawImage(canvas, 0, 0, W, H, 0, 0, pixelCanvas.width, pixelCanvas.height);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(pixelCanvas, 0, 0, pixelCanvas.width, pixelCanvas.height, 0, 0, W, H);
+  ctx.imageSmoothingEnabled = true;
+}
+
 function render() {
   drawBackground();
 
@@ -1850,6 +2010,8 @@ function render() {
       ctx.globalAlpha = 1;
     }
   }
+
+  if (pixelStyleEnabled) applyPixelStyle();
 }
 
 // ---------- Main loop ----------
