@@ -386,8 +386,7 @@ function generateScenery() {
     forestTrees.push({
       x: 35 + Math.random() * (W - 70),
       y: groundBandTop + 20 + Math.random() * (H - groundBandTop - 30),
-      size: 26 + Math.random() * 20,
-      lean: (Math.random() - 0.5) * 0.25,
+      size: 44 + Math.random() * 26,
       swayPhase: Math.random() * Math.PI * 2,
     });
   }
@@ -1202,10 +1201,10 @@ function drawBackground() {
     ctx.restore();
   });
 
-  // tall swaying trees, exclusive to the Midnight Forest
+  // tall, straight-trunked trees, exclusive to the Midnight Forest
   if (currentWorldIndex === 0) {
     forestTrees.forEach((tr) => {
-      const sway = Math.sin(tr.swayPhase) * 0.05;
+      const canopySway = Math.sin(tr.swayPhase) * 0.04;
       ctx.save();
       ctx.translate(tr.x, tr.y);
 
@@ -1215,9 +1214,7 @@ function drawBackground() {
       ctx.ellipse(0, tr.size * 0.15, tr.size * 0.8, tr.size * 0.25, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.rotate(tr.lean + sway);
-
-      // trunk
+      // trunk stays perfectly straight and upright
       ctx.fillStyle = '#120e18';
       ctx.beginPath();
       ctx.moveTo(-tr.size * 0.1, tr.size * 0.1);
@@ -1227,7 +1224,8 @@ function drawBackground() {
       ctx.closePath();
       ctx.fill();
 
-      // canopy: a cluster of overlapping dark circles
+      // canopy: a cluster of overlapping dark circles, with only a slight sway
+      ctx.rotate(canopySway);
       ctx.fillStyle = '#0f1f16';
       const canopyY = -tr.size * 0.85;
       ctx.beginPath(); ctx.arc(0, canopyY, tr.size * 0.62, 0, Math.PI * 2); ctx.fill();
