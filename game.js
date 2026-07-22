@@ -19,6 +19,7 @@ const rocketFill = document.getElementById('rocket-fill');
 const levelText = document.getElementById('level-text');
 const goldText = document.getElementById('gold-text');
 const waveText = document.getElementById('wave-text');
+const worldText = document.getElementById('world-text');
 const spText = document.getElementById('sp-text');
 const upgradeBtn = document.getElementById('upgrade-btn');
 const autoAttackBtn = document.getElementById('autoattack-btn');
@@ -165,9 +166,72 @@ let lastTime = 0;
 let player, enemies, particles, floatingTexts, rockets;
 let scenery = [];
 let mist = [];
+let groundFog = [];
 let wave, waveTimer, waveSpawning, enemiesToSpawn, spawnTimer;
 let bestWave = parseInt(localStorage.getItem('batrpg_best_wave') || '1', 10);
 bestWaveEl.textContent = bestWave;
+
+// ---------- Wormholes & alternate worlds ----------
+// Every so often a swirling wormhole appears somewhere on the map. If the
+// bat flies into it, the whole map is transported to a different "world"
+// with its own night-sky palette, and the bat gets a small reward.
+const WORLDS = [
+  { name: 'Midnight Forest', skyTop: '#1d1636', skyMid: '#120c22', skyBottom: '#07050f', mist: '200,200,255', moon: '#f0edd8' },
+  { name: 'Blood Moon Realm', skyTop: '#3d1414', skyMid: '#220b12', skyBottom: '#0f0508', mist: '255,150,150', moon: '#ff8a8a', tint: 'rgba(120,20,20,0.12)' },
+  { name: 'Toxic Swamp', skyTop: '#123420', skyMid: '#0b2214', skyBottom: '#050f08', mist: '150,255,180', moon: '#c8ff9a', tint: 'rgba(30,120,50,0.12)' },
+  { name: 'Crystal Cavern', skyTop: '#132a3d', skyMid: '#0b1b2a', skyBottom: '#050d14', mist: '160,220,255', moon: '#9adcff', tint: 'rgba(40,110,170,0.12)' },
+  { name: 'Golden Dusk', skyTop: '#3a2f10', skyMid: '#231b0a', skyBottom: '#100c04', mist: '255,220,150', moon: '#ffe08a', tint: 'rgba(150,110,20,0.1)' },
+];
+let currentWorldIndex = 0;
+let wormhole = null;
+let wormholeTimer = 0;
+let screenFlash = 0;
+let screenFlashColor = '#ffffff';
+
+function spawnWormhole() {
+  // Pick a spot away from the player so it isn't an unavoidable ambush.
+  let x, y;
+  do {
+    x = 60 + Math.random() * (W - 120);
+    y = 60 + Math.random() * (H - 120);
+  } while (player && distance(x, y, player.x, player.y) < 180);
+
+  wormhole = { x, y, radius: 26, life: 14, spinPhase: 0 };
+  floatingTexts.push({
+    x, y: y - 40, text: '🌀 A wormhole has appeared!', life: 1.4, vy: -15, color: '#b48cff',
+  });
+}
+
+function enterWormhole() {
+  currentWorldIndex = (currentWorldIndex + 1) % WORLDS.length;
+  const world = WORLDS[currentWorldIndex];
+
+  // small reward for braving the wormhole
+  player.hp = Math.min(player.maxHp, player.hp + player.maxHp * 0.2);
+  coins += 15;
+  saveCoins();
+
+  for (let i = 0; i < 30; i++) {
+    const angle = (Math.PI * 2 * i) / 30;
+    particles.push({
+      x: wormhole.x, y: wormhole.y,
+      vx: Math.cos(angle) * 200,
+      vy: Math.sin(angle) * 200,
+      life: 0.5, color: '#b48cff',
+    });
+  }
+
+  player.x = W / 2 + (Math.random() - 0.5) * 120;
+  player.y = H / 2 + (Math.random() - 0.5) * 120;
+  floatingTexts.push({
+    x: player.x, y: player.y - 30, text: `Welcome to ${world.name}!`, life: 1.4, vy: -18, color: '#b48cff',
+  });
+
+  screenFlash = 0.4;
+  screenFlashColor = world.moon;
+  wormhole = null;
+  wormholeTimer = 22 + Math.random() * 16;
+}
 
 function createPlayer() {
   return {
@@ -230,6 +294,10 @@ function resetGame() {
   enemiesToSpawn = 0;
   spawnTimer = 0;
   keys = {};
+  currentWorldIndex = 0;
+  wormhole = null;
+  wormholeTimer = 18 + Math.random() * 12;
+  screenFlash = 0;
   generateScenery();
 }
 
@@ -261,6 +329,19 @@ function generateScenery() {
       vy: (Math.random() - 0.5) * 4,
       radius: 60 + Math.random() * 90,
       opacity: 0.05 + Math.random() * 0.05,
+    });
+  }
+
+  // Low, wavy ground-fog banks for the Midnight Forest's spooky forest floor.
+  groundFog = [];
+  for (let i = 0; i < 4; i++) {
+    groundFog.push({
+      y: H - 50 - i * 40 + Math.random() * 20,
+      height: 45 + Math.random() * 25,
+      offset: Math.random() * W,
+      speed: 6 + Math.random() * 10,
+      amp: 6 + Math.random() * 10,
+      opacity: 0.05 + Math.random() * 0.06,
     });
   }
 }
@@ -888,6 +969,27 @@ function update(dt) {
     if (m.y > H + m.radius) m.y = -m.radius;
   });
 
+  // wavy ground-fog banks drift sideways over time
+  groundFog.forEach((b) => {
+    b.offset += b.speed * dt;
+  });
+
+  // wormholes: spawn occasionally, and teleport the bat to a new world on contact
+  if (!wormhole) {
+    wormholeTimer -= dt;
+    if (wormholeTimer <= 0) spawnWormhole();
+  } else {
+    wormhole.spinPhase += dt;
+    wormhole.life -= dt;
+    if (wormhole.life <= 0) {
+      wormhole = null;
+      wormholeTimer = 22 + Math.random() * 16;
+    } else if (distance(player.x, player.y, wormhole.x, wormhole.y) <= player.radius + wormhole.radius) {
+      enterWormhole();
+    }
+  }
+  if (screenFlash > 0) screenFlash -= dt;
+
   // death check
   if (player.hp <= 0) {
     endGame();
@@ -915,6 +1017,7 @@ function updateHud() {
   levelText.textContent = `Lv ${player.level}`;
   goldText.textContent = `🪙 ${coins}`;
   waveText.textContent = `Wave ${wave}`;
+  worldText.textContent = `🌙 ${WORLDS[currentWorldIndex].name}`;
   const ultPct = player.ultimateTimer > 0 ? 100 - (player.ultimateTimer / player.ultimateCooldown) * 100 : 100;
   ultFill.style.width = `${ultPct}%`;
   const rpgPct = player.rpgTimer > 0 ? 100 - (player.rpgTimer / player.rpgCooldown) * 100 : 100;
@@ -929,13 +1032,19 @@ function updateHud() {
 
 // ---------- Render ----------
 function drawBackground() {
-  // moonlit forest-floor gradient (deeper vignette away from the moon)
+  const world = WORLDS[currentWorldIndex];
+
+  // moonlit forest-floor gradient (deeper vignette away from the moon), tinted per-world
   const grad = ctx.createRadialGradient(W - 100, 60, 60, W * 0.4, H * 0.6, Math.max(W, H) * 0.9);
-  grad.addColorStop(0, '#1d1636');
-  grad.addColorStop(0.55, '#120c22');
-  grad.addColorStop(1, '#07050f');
+  grad.addColorStop(0, world.skyTop);
+  grad.addColorStop(0.55, world.skyMid);
+  grad.addColorStop(1, world.skyBottom);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
+  if (world.tint) {
+    ctx.fillStyle = world.tint;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   // twinkling stars in the upper sky band
   const t = performance.now() / 1000;
@@ -949,7 +1058,7 @@ function drawBackground() {
   }
   ctx.globalAlpha = 1;
 
-  // moon with soft glow halo and craters
+  // moon with soft glow halo and craters, tinted per-world
   const moonX = W - 80, moonY = 80, moonR = 40;
   const glow = ctx.createRadialGradient(moonX, moonY, moonR * 0.6, moonX, moonY, moonR * 2.4);
   glow.addColorStop(0, 'rgba(240,237,216,0.32)');
@@ -960,7 +1069,7 @@ function drawBackground() {
   ctx.fill();
 
   ctx.globalAlpha = 0.95;
-  ctx.fillStyle = '#f0edd8';
+  ctx.fillStyle = world.moon;
   ctx.beginPath();
   ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
   ctx.fill();
@@ -1013,16 +1122,38 @@ function drawBackground() {
     ctx.restore();
   });
 
-  // drifting ground mist for atmosphere
+  // drifting ground mist for atmosphere, tinted per-world
   mist.forEach((m) => {
     const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.radius);
-    g.addColorStop(0, `rgba(200,200,255,${m.opacity})`);
-    g.addColorStop(1, 'rgba(200,200,255,0)');
+    g.addColorStop(0, `rgba(${world.mist},${m.opacity})`);
+    g.addColorStop(1, `rgba(${world.mist},0)`);
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
     ctx.fill();
   });
+
+  // Low, wavy ground-fog banks - a spooky forest-floor mist unique to Midnight Forest
+  if (currentWorldIndex === 0) {
+    groundFog.forEach((b) => {
+      const grad = ctx.createLinearGradient(0, b.y - b.height / 2, 0, b.y + b.height / 2);
+      grad.addColorStop(0, 'rgba(210,210,255,0)');
+      grad.addColorStop(0.5, `rgba(210,210,255,${b.opacity})`);
+      grad.addColorStop(1, 'rgba(210,210,255,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      const step = 40;
+      ctx.moveTo(0, b.y - b.height / 2 + Math.sin(b.offset * 0.02) * b.amp);
+      for (let x = 0; x <= W; x += step) {
+        ctx.lineTo(x, b.y - b.height / 2 + Math.sin((x + b.offset) * 0.02) * b.amp);
+      }
+      for (let x = W; x >= 0; x -= step) {
+        ctx.lineTo(x, b.y + b.height / 2 + Math.sin((x + b.offset) * 0.02 + 1.5) * b.amp);
+      }
+      ctx.closePath();
+      ctx.fill();
+    });
+  }
 }
 
 function drawBat(p) {
@@ -1461,10 +1592,44 @@ function drawRocket(r) {
   ctx.restore();
 }
 
+function drawWormhole(w) {
+  ctx.save();
+  ctx.translate(w.x, w.y);
+  // last couple seconds flicker/shrink before it closes
+  const fade = Math.min(1, w.life / 2);
+  const pulse = 0.85 + 0.15 * Math.sin(w.spinPhase * 3);
+
+  const glow = ctx.createRadialGradient(0, 0, w.radius * 0.3, 0, 0, w.radius * 2.4 * pulse);
+  glow.addColorStop(0, `rgba(138,92,245,${0.55 * fade})`);
+  glow.addColorStop(1, 'rgba(138,92,245,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, w.radius * 2.4 * pulse, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = fade;
+  for (let i = 0; i < 3; i++) {
+    const dir = i % 2 === 0 ? 1 : -1;
+    const spin = w.spinPhase * (i + 1) * dir;
+    ctx.beginPath();
+    ctx.strokeStyle = i % 2 === 0 ? '#b48cff' : '#5cdcff';
+    ctx.lineWidth = 3;
+    ctx.arc(0, 0, w.radius * (0.4 + i * 0.22), spin, spin + Math.PI * 1.3);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#0a0616';
+  ctx.beginPath();
+  ctx.arc(0, 0, w.radius * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
 function render() {
   drawBackground();
 
   if (state === 'playing' || state === 'paused' || state === 'gameover') {
+    if (wormhole) drawWormhole(wormhole);
     enemies.forEach(drawEnemy);
     drawBat(player);
     rockets.forEach(drawRocket);
@@ -1486,6 +1651,13 @@ function render() {
       ctx.fillText(f.text, f.x, f.y);
       ctx.globalAlpha = 1;
     });
+
+    if (screenFlash > 0) {
+      ctx.globalAlpha = Math.min(1, screenFlash / 0.4) * 0.6;
+      ctx.fillStyle = screenFlashColor;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
   }
 }
 
