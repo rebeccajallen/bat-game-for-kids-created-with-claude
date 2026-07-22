@@ -167,6 +167,8 @@ let player, enemies, particles, floatingTexts, rockets;
 let scenery = [];
 let mist = [];
 let groundFog = [];
+let groundPatches = [];
+let forestTrees = [];
 let wave, waveTimer, waveSpawning, enemiesToSpawn, spawnTimer;
 let bestWave = parseInt(localStorage.getItem('batrpg_best_wave') || '1', 10);
 bestWaveEl.textContent = bestWave;
@@ -322,13 +324,29 @@ function generateScenery() {
 
   mist = [];
   for (let i = 0; i < 6; i++) {
+    // Each mist cloud is made of several overlapping soft puffs that orbit
+    // its center, so the whole cloud churns and swirls as it drifts.
+    const puffCount = 5 + Math.floor(Math.random() * 3);
+    const puffs = [];
+    for (let j = 0; j < puffCount; j++) {
+      puffs.push({
+        angle: Math.random() * Math.PI * 2,
+        dist: 0.25 + Math.random() * 0.55,
+        size: 0.45 + Math.random() * 0.55,
+        spin: Math.random() < 0.5 ? 1 : -1,
+        pulseOffset: Math.random() * Math.PI * 2,
+      });
+    }
     mist.push({
       x: Math.random() * W,
       y: Math.random() * H,
       vx: (Math.random() - 0.5) * 6,
       vy: (Math.random() - 0.5) * 4,
       radius: 60 + Math.random() * 90,
-      opacity: 0.05 + Math.random() * 0.05,
+      opacity: 0.06 + Math.random() * 0.05,
+      phase: Math.random() * Math.PI * 2,
+      swirlSpeed: (0.12 + Math.random() * 0.18) * (Math.random() < 0.5 ? 1 : -1),
+      puffs,
     });
   }
 
@@ -342,6 +360,30 @@ function generateScenery() {
       speed: 6 + Math.random() * 10,
       amp: 6 + Math.random() * 10,
       opacity: 0.05 + Math.random() * 0.06,
+    });
+  }
+
+  // Mottled forest-floor ground patches and tall trees, exclusive to the
+  // Midnight Forest world, to give it a real "forest" feel underfoot.
+  groundPatches = [];
+  for (let i = 0; i < 16; i++) {
+    groundPatches.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: 45 + Math.random() * 60,
+      rot: Math.random() * Math.PI * 2,
+      shade: Math.random() < 0.5 ? '#162a1c' : '#1c2e1a',
+    });
+  }
+
+  forestTrees = [];
+  for (let i = 0; i < 9; i++) {
+    forestTrees.push({
+      x: 35 + Math.random() * (W - 70),
+      y: 35 + Math.random() * (H - 70),
+      size: 26 + Math.random() * 20,
+      lean: (Math.random() - 0.5) * 0.25,
+      swayPhase: Math.random() * Math.PI * 2,
     });
   }
 }
@@ -959,10 +1001,11 @@ function update(dt) {
   });
   floatingTexts = floatingTexts.filter((f) => f.life > 0);
 
-  // drifting ground mist, wraps around the map edges
+  // drifting ground mist, wraps around the map edges and swirls as it drifts
   mist.forEach((m) => {
     m.x += m.vx * dt;
     m.y += m.vy * dt;
+    m.phase += m.swirlSpeed * dt;
     if (m.x < -m.radius) m.x = W + m.radius;
     if (m.x > W + m.radius) m.x = -m.radius;
     if (m.y < -m.radius) m.y = H + m.radius;
@@ -972,6 +1015,11 @@ function update(dt) {
   // wavy ground-fog banks drift sideways over time
   groundFog.forEach((b) => {
     b.offset += b.speed * dt;
+  });
+
+  // gentle tree sway
+  forestTrees.forEach((t) => {
+    t.swayPhase += dt * 0.6;
   });
 
   // wormholes: spawn occasionally, and teleport the bat to a new world on contact
@@ -1044,6 +1092,22 @@ function drawBackground() {
   if (world.tint) {
     ctx.fillStyle = world.tint;
     ctx.fillRect(0, 0, W, H);
+  }
+
+  // mottled forest-floor ground patches, exclusive to the Midnight Forest
+  if (currentWorldIndex === 0) {
+    groundPatches.forEach((g) => {
+      ctx.save();
+      ctx.translate(g.x, g.y);
+      ctx.rotate(g.rot);
+      ctx.fillStyle = g.shade;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, g.size, g.size * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    });
   }
 
   // twinkling stars in the upper sky band
@@ -1122,15 +1186,77 @@ function drawBackground() {
     ctx.restore();
   });
 
-  // drifting ground mist for atmosphere, tinted per-world
+  // tall swaying trees, exclusive to the Midnight Forest
+  if (currentWorldIndex === 0) {
+    forestTrees.forEach((tr) => {
+      const sway = Math.sin(tr.swayPhase) * 0.05;
+      ctx.save();
+      ctx.translate(tr.x, tr.y);
+
+      // shadow at the base
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(0, tr.size * 0.15, tr.size * 0.8, tr.size * 0.25, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.rotate(tr.lean + sway);
+
+      // trunk
+      ctx.fillStyle = '#120e18';
+      ctx.beginPath();
+      ctx.moveTo(-tr.size * 0.1, tr.size * 0.1);
+      ctx.lineTo(-tr.size * 0.06, -tr.size * 0.5);
+      ctx.lineTo(tr.size * 0.06, -tr.size * 0.5);
+      ctx.lineTo(tr.size * 0.1, tr.size * 0.1);
+      ctx.closePath();
+      ctx.fill();
+
+      // canopy: a cluster of overlapping dark circles
+      ctx.fillStyle = '#0f1f16';
+      const canopyY = -tr.size * 0.85;
+      ctx.beginPath(); ctx.arc(0, canopyY, tr.size * 0.62, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(-tr.size * 0.4, canopyY + tr.size * 0.18, tr.size * 0.42, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(tr.size * 0.4, canopyY + tr.size * 0.18, tr.size * 0.42, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, canopyY - tr.size * 0.3, tr.size * 0.4, 0, Math.PI * 2); ctx.fill();
+
+      // faint moonlit highlight on one side of the canopy
+      ctx.fillStyle = 'rgba(150,140,190,0.12)';
+      ctx.beginPath();
+      ctx.arc(tr.size * 0.25, canopyY - tr.size * 0.2, tr.size * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    });
+  }
+}
+
+// Drawn AFTER the bat/enemies so the mist visibly drifts in front of them,
+// while staying translucent so everything underneath remains visible.
+function drawMistLayer() {
+  const world = WORLDS[currentWorldIndex];
+  const t = performance.now() / 1000;
+
+  // Each cloud is several soft puffs orbiting its center at different radii/
+  // speeds, so the whole thing churns and swirls like a real drifting cloud
+  // instead of just sliding across the screen as one flat blob.
   mist.forEach((m) => {
-    const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.radius);
-    g.addColorStop(0, `rgba(${world.mist},${m.opacity})`);
-    g.addColorStop(1, `rgba(${world.mist},0)`);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
-    ctx.fill();
+    m.puffs.forEach((puff) => {
+      const angle = puff.angle + m.phase * puff.spin;
+      const dist = puff.dist * m.radius;
+      const px = m.x + Math.cos(angle) * dist;
+      const py = m.y + Math.sin(angle) * dist * 0.55; // flatten vertically, cloud-like
+      const pulse = 0.85 + 0.15 * Math.sin(t * 1.1 + puff.pulseOffset);
+      const size = puff.size * m.radius * pulse;
+
+      const g = ctx.createRadialGradient(px, py, 0, px, py, size);
+      g.addColorStop(0, `rgba(${world.mist},${m.opacity})`);
+      g.addColorStop(0.7, `rgba(${world.mist},${m.opacity * 0.5})`);
+      g.addColorStop(1, `rgba(${world.mist},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(px, py, size, 0, Math.PI * 2);
+      ctx.fill();
+    });
   });
 
   // Low, wavy ground-fog banks - a spooky forest-floor mist unique to Midnight Forest
@@ -1651,6 +1777,8 @@ function render() {
       ctx.fillText(f.text, f.x, f.y);
       ctx.globalAlpha = 1;
     });
+
+    drawMistLayer();
 
     if (screenFlash > 0) {
       ctx.globalAlpha = Math.min(1, screenFlash / 0.4) * 0.6;
