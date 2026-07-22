@@ -89,6 +89,15 @@ canvas {
   animation: pulse 1.4s infinite;
 }
 
+.hiding-badge {
+  background: #16351f;
+  color: #9ae6a8;
+  border: 1px solid #33d97a;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
 @keyframes pulse {
   0%, 100% { box-shadow: 0 0 0px #8a5cf5; }
   50% { box-shadow: 0 0 10px #8a5cf5; }

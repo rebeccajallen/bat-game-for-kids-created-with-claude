@@ -21,6 +21,7 @@ const goldText = document.getElementById('gold-text');
 const waveText = document.getElementById('wave-text');
 const worldText = document.getElementById('world-text');
 const spText = document.getElementById('sp-text');
+const hidingText = document.getElementById('hiding-text');
 const upgradeBtn = document.getElementById('upgrade-btn');
 const autoAttackBtn = document.getElementById('autoattack-btn');
 const rpgPanel = document.getElementById('rpg-panel');
@@ -267,6 +268,8 @@ function createPlayer() {
     facing: 1,
     flapPhase: 0,
     hitFlash: 0,
+    hiding: false,
+    hidingTree: null,
   };
 }
 
@@ -515,6 +518,34 @@ canvas.addEventListener('click', (e) => {
     const dmg = player.damage * (isCrit ? player.critMult : 1);
     damageEnemy(target, dmg, isCrit);
     player.clickAttackTimer = player.attackCooldown;
+  } else if (currentWorldIndex === 0) {
+    // No enemy was clicked - check whether a tree was clicked to hide/unhide.
+    let clickedTree = null;
+    for (const tr of forestTrees) {
+      if (distance(mx, my, tr.x, tr.y) <= tr.size * 0.9) { clickedTree = tr; break; }
+    }
+    if (clickedTree) {
+      if (player.hiding && player.hidingTree === clickedTree) {
+        player.hiding = false;
+        player.hidingTree = null;
+        floatingTexts.push({
+          x: player.x, y: player.y - 26, text: 'Left the tree', life: 0.8, vy: -18, color: '#b7aee0',
+        });
+      } else if (!player.hiding) {
+        const reachable = distance(player.x, player.y, clickedTree.x, clickedTree.y) <= clickedTree.size * 1.3;
+        if (reachable) {
+          player.hiding = true;
+          player.hidingTree = clickedTree;
+          floatingTexts.push({
+            x: player.x, y: player.y - 26, text: '🌲 Hidden!', life: 0.9, vy: -18, color: '#7bd47a',
+          });
+        } else {
+          floatingTexts.push({
+            x: clickedTree.x, y: clickedTree.y - clickedTree.size, text: 'Too far away!', life: 0.7, vy: -18, color: '#e05252',
+          });
+        }
+      }
+    }
   }
 });
 
@@ -532,7 +563,8 @@ canvas.addEventListener('mousemove', (e) => {
     if (distance(mx, my, en.x, en.y) > en.radius + 6) return false;
     return distance(player.x, player.y, en.x, en.y) <= player.range;
   });
-  canvas.style.cursor = hovering ? 'pointer' : 'crosshair';
+  const hoveringTree = currentWorldIndex === 0 && forestTrees.some((tr) => distance(mx, my, tr.x, tr.y) <= tr.size * 0.9);
+  canvas.style.cursor = hovering || hoveringTree ? 'pointer' : 'crosshair';
 });
 
 startBtn.addEventListener('click', () => {
@@ -886,6 +918,19 @@ function update(dt) {
   player.y = Math.max(player.radius, Math.min(H - player.radius, player.y));
   player.flapPhase += dt * 12;
 
+  // hiding: click a tree to hide there; wandering too far away, or leaving
+  // the Midnight Forest entirely, automatically breaks the hiding
+  if (player.hiding) {
+    const stillClose = player.hidingTree && distance(player.x, player.y, player.hidingTree.x, player.hidingTree.y) <= player.hidingTree.size * 1.3;
+    if (currentWorldIndex !== 0 || !stillClose) {
+      player.hiding = false;
+      player.hidingTree = null;
+      floatingTexts.push({
+        x: player.x, y: player.y - 26, text: 'Left the tree', life: 0.8, vy: -18, color: '#b7aee0',
+      });
+    }
+  }
+
   // regen
   if (player.hpRegen > 0) {
     player.hp = Math.min(player.maxHp, player.hp + player.hpRegen * dt);
@@ -947,6 +992,7 @@ function update(dt) {
   // enemies
   enemies.forEach((en) => {
     if (en.dead) return;
+    if (player.hiding) return; // enemies lose track of a hidden bat entirely
     const d = distance(player.x, player.y, en.x, en.y) || 1;
     const nx = (player.x - en.x) / d;
     const ny = (player.y - en.y) / d;
@@ -1080,6 +1126,7 @@ function updateHud() {
   } else {
     spText.style.display = 'none';
   }
+  hidingText.style.display = player.hiding ? 'inline-block' : 'none';
 }
 
 // ---------- Render ----------
@@ -1300,6 +1347,8 @@ function drawBat(p) {
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.scale(p.facing, 1);
+
+  if (p.hiding) ctx.globalAlpha = 0.45; // fade the bat while it's tucked away hiding
 
   if (p.hitFlash > 0) {
     ctx.shadowColor = '#ff4040';
