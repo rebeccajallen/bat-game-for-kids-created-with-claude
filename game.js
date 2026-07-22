@@ -169,6 +169,9 @@ let mist = [];
 let groundFog = [];
 let groundPatches = [];
 let forestTrees = [];
+// The bottom this fraction of the screen is treated as "the ground" for the
+// Midnight Forest's floor band, trees, and ground patches.
+const GROUND_BAND_RATIO = 0.62;
 let wave, waveTimer, waveSpawning, enemiesToSpawn, spawnTimer;
 let bestWave = parseInt(localStorage.getItem('batrpg_best_wave') || '1', 10);
 bestWaveEl.textContent = bestWave;
@@ -364,12 +367,14 @@ function generateScenery() {
   }
 
   // Mottled forest-floor ground patches and tall trees, exclusive to the
-  // Midnight Forest world, to give it a real "forest" feel underfoot.
+  // Midnight Forest world. They're confined to a ground band along the
+  // bottom of the screen so it actually reads as "the ground".
+  const groundBandTop = H * GROUND_BAND_RATIO;
   groundPatches = [];
   for (let i = 0; i < 16; i++) {
     groundPatches.push({
       x: Math.random() * W,
-      y: Math.random() * H,
+      y: groundBandTop + Math.random() * (H - groundBandTop),
       size: 45 + Math.random() * 60,
       rot: Math.random() * Math.PI * 2,
       shade: Math.random() < 0.5 ? '#162a1c' : '#1c2e1a',
@@ -380,7 +385,7 @@ function generateScenery() {
   for (let i = 0; i < 9; i++) {
     forestTrees.push({
       x: 35 + Math.random() * (W - 70),
-      y: 35 + Math.random() * (H - 70),
+      y: groundBandTop + 20 + Math.random() * (H - groundBandTop - 30),
       size: 26 + Math.random() * 20,
       lean: (Math.random() - 0.5) * 0.25,
       swayPhase: Math.random() * Math.PI * 2,
@@ -1092,6 +1097,17 @@ function drawBackground() {
   if (world.tint) {
     ctx.fillStyle = world.tint;
     ctx.fillRect(0, 0, W, H);
+  }
+
+  // solid ground band along the bottom of the screen, exclusive to the Midnight Forest
+  if (currentWorldIndex === 0) {
+    const bandTop = H * GROUND_BAND_RATIO;
+    const groundGrad = ctx.createLinearGradient(0, bandTop, 0, H);
+    groundGrad.addColorStop(0, 'rgba(20,38,26,0)');
+    groundGrad.addColorStop(0.15, 'rgba(20,38,26,0.85)');
+    groundGrad.addColorStop(1, '#0d1a10');
+    ctx.fillStyle = groundGrad;
+    ctx.fillRect(0, bandTop, W, H - bandTop);
   }
 
   // mottled forest-floor ground patches, exclusive to the Midnight Forest
