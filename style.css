@@ -119,7 +119,7 @@ canvas {
   align-items: flex-end;
 }
 
-#upgrade-btn, #help-btn, #autoattack-btn, #shop-btn, #pause-btn, #bestiary-btn {
+#upgrade-btn, #help-btn, #autoattack-btn, #shop-btn, #pause-btn, #bestiary-btn, #sound-btn {
   background: #2c2440;
   color: #eae6ff;
   border: 1px solid #5a2fc9;
@@ -130,7 +130,7 @@ canvas {
   white-space: nowrap;
 }
 
-#upgrade-btn:hover, #help-btn:hover, #autoattack-btn:hover, #shop-btn:hover, #pause-btn:hover, #bestiary-btn:hover {
+#upgrade-btn:hover, #help-btn:hover, #autoattack-btn:hover, #shop-btn:hover, #pause-btn:hover, #bestiary-btn:hover, #sound-btn:hover {
   background: #3a2f5c;
 }
 
@@ -157,6 +157,15 @@ canvas {
 #autoattack-btn.off {
   border-color: #e05252;
   color: #f0b0b0;
+}
+
+#sound-btn {
+  border-color: #5cbfff;
+}
+
+#sound-btn.off {
+  border-color: #766e94;
+  color: #b7aee0;
 }
 
 /* RPG / Help Panels */

@@ -60,6 +60,200 @@ const bestiaryBtn = document.getElementById('bestiary-btn');
 const bestiaryPanel = document.getElementById('bestiary-panel');
 const closeBestiaryBtn = document.getElementById('close-bestiary');
 const bestiaryListEl = document.getElementById('bestiary-list');
+const soundBtn = document.getElementById('sound-btn');
+
+// ---------- Sound effects (synthesized with the Web Audio API, no audio files needed) ----------
+let audioCtx = null;
+let masterGain = null;
+let soundEnabled = localStorage.getItem('batrpg_sound_enabled') !== 'false'; // default ON
+
+function ensureAudio() {
+  if (audioCtx) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return;
+  }
+  const AudioCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtor) return;
+  audioCtx = new AudioCtor();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = soundEnabled ? 0.35 : 0;
+  masterGain.connect(audioCtx.destination);
+  startMusicLoop();
+}
+
+function setSoundEnabled(enabled) {
+  soundEnabled = enabled;
+  localStorage.setItem('batrpg_sound_enabled', String(enabled));
+  if (enabled) ensureAudio();
+  if (masterGain) masterGain.gain.value = enabled ? 0.35 : 0;
+  if (musicGain) musicGain.gain.value = enabled ? MUSIC_VOLUME : 0;
+  soundBtn.textContent = `${enabled ? '🔊' : '🔇'} Sound: ${enabled ? 'ON' : 'OFF'}`;
+  soundBtn.classList.toggle('off', !enabled);
+}
+
+// ---------- Background music (a slow, looping synthesized ambient pad) ----------
+// A gentle minor-key chord progression with a soft plucked arpeggio on top,
+// evoking a spooky night atmosphere. No audio files needed - it's all
+// generated in real time with oscillators.
+let musicGain = null;
+let musicStarted = false;
+const MUSIC_VOLUME = 0.12;
+const MUSIC_CHORDS = [
+  [220.0, 261.63, 329.63], // A minor  (A3, C4, E4)
+  [196.0, 246.94, 293.66], // G major  (G3, B3, D4)
+  [174.61, 220.0, 261.63], // F major  (F3, A3, C4)
+  [196.0, 233.08, 293.66], // G minor  (G3, Bb3, D4)
+];
+let musicChordIndex = 0;
+
+function playPluck(freq, startTime, duration, volume) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.linearRampToValueAtTime(volume, startTime + 0.04);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+  osc.connect(gain);
+  gain.connect(musicGain);
+  osc.start(startTime);
+  osc.stop(startTime + duration + 0.05);
+}
+
+function playMusicChord(chord, startTime, duration) {
+  // sustained ambient pad
+  chord.forEach((freq) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.linearRampToValueAtTime(0.5 / chord.length, startTime + 1.0);
+    gain.gain.linearRampToValueAtTime(0.0001, startTime + duration);
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.1);
+  });
+
+  // gentle plucked arpeggio, one soft note per beat, an octave up
+  const beat = duration / 4;
+  chord.forEach((freq, i) => {
+    playPluck(freq * 2, startTime + i * beat, beat * 0.9, 0.05);
+  });
+}
+
+function startMusicLoop() {
+  if (musicStarted || !audioCtx) return;
+  musicStarted = true;
+  musicGain = audioCtx.createGain();
+  musicGain.gain.value = soundEnabled ? MUSIC_VOLUME : 0;
+  musicGain.connect(audioCtx.destination);
+
+  const chordDuration = 4.2;
+  const scheduleNext = () => {
+    if (!audioCtx) return;
+    const chord = MUSIC_CHORDS[musicChordIndex % MUSIC_CHORDS.length];
+    musicChordIndex += 1;
+    playMusicChord(chord, audioCtx.currentTime + 0.05, chordDuration);
+  };
+  scheduleNext();
+  setInterval(scheduleNext, chordDuration * 1000);
+}
+
+// A single synthesized tone with a short attack/decay envelope.
+function playTone({ freq = 440, endFreq = null, duration = 0.15, type = 'sine', volume = 0.3, delay = 0 }) {
+  if (!soundEnabled) return;
+  ensureAudio();
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime + delay;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(1, endFreq), t0 + duration);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(volume, t0 + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+
+// A short burst of filtered noise, useful for explosions and impacts.
+function playNoise({ duration = 0.2, volume = 0.3, delay = 0, filterFreq = 1200 }) {
+  if (!soundEnabled) return;
+  ensureAudio();
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime + delay;
+  const bufferSize = Math.max(1, Math.floor(audioCtx.sampleRate * duration));
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = filterFreq;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(volume, t0);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(masterGain);
+  noise.start(t0);
+  noise.stop(t0 + duration + 0.02);
+}
+
+// Named sound-effect presets used throughout the game.
+const sfx = {
+  bite: () => playTone({ freq: 220, endFreq: 140, duration: 0.08, type: 'square', volume: 0.18 }),
+  crit: () => {
+    playTone({ freq: 500, endFreq: 900, duration: 0.1, type: 'square', volume: 0.22 });
+    playTone({ freq: 300, duration: 0.05, type: 'square', volume: 0.15, delay: 0.03 });
+  },
+  enemyDeath: () => playTone({ freq: 260, endFreq: 60, duration: 0.25, type: 'sawtooth', volume: 0.2 }),
+  levelUp: () => {
+    [523, 659, 784, 1047].forEach((f, i) => playTone({ freq: f, duration: 0.16, type: 'triangle', volume: 0.22, delay: i * 0.09 }));
+  },
+  rocketFire: () => playNoise({ duration: 0.18, volume: 0.16, filterFreq: 700 }),
+  explosion: () => {
+    playNoise({ duration: 0.35, volume: 0.32, filterFreq: 450 });
+    playTone({ freq: 90, endFreq: 30, duration: 0.3, type: 'sawtooth', volume: 0.2 });
+  },
+  ultimate: () => playTone({ freq: 180, endFreq: 900, duration: 0.5, type: 'sawtooth', volume: 0.22 }),
+  playerHurt: () => playTone({ freq: 150, endFreq: 80, duration: 0.15, type: 'square', volume: 0.2 }),
+  wormhole: () => {
+    playTone({ freq: 300, endFreq: 1200, duration: 0.4, type: 'sine', volume: 0.2 });
+    playTone({ freq: 900, endFreq: 200, duration: 0.4, type: 'sine', volume: 0.15, delay: 0.05 });
+  },
+  coin: () => {
+    playTone({ freq: 880, duration: 0.08, type: 'triangle', volume: 0.16 });
+    playTone({ freq: 1318, duration: 0.1, type: 'triangle', volume: 0.14, delay: 0.06 });
+  },
+  purchase: () => {
+    playTone({ freq: 660, duration: 0.1, type: 'triangle', volume: 0.2 });
+    playTone({ freq: 990, duration: 0.14, type: 'triangle', volume: 0.18, delay: 0.08 });
+  },
+  gameOver: () => {
+    [392, 349, 294, 262].forEach((f, i) => playTone({ freq: f, duration: 0.35, type: 'sawtooth', volume: 0.2, delay: i * 0.22 }));
+  },
+  click: () => playTone({ freq: 700, duration: 0.05, type: 'square', volume: 0.1 }),
+  hide: () => playTone({ freq: 500, endFreq: 250, duration: 0.15, type: 'sine', volume: 0.15 }),
+  waveStart: () => {
+    playTone({ freq: 220, duration: 0.2, type: 'sawtooth', volume: 0.18 });
+    playTone({ freq: 330, duration: 0.25, type: 'sawtooth', volume: 0.15, delay: 0.12 });
+  },
+  hoot: () => {
+    playTone({ freq: 480, endFreq: 380, duration: 0.35, type: 'sine', volume: 0.14 });
+    playTone({ freq: 420, endFreq: 320, duration: 0.4, type: 'sine', volume: 0.11, delay: 0.42 });
+  },
+  screech: () => {
+    playTone({ freq: 1400, endFreq: 700, duration: 0.22, type: 'sawtooth', volume: 0.2 });
+    playTone({ freq: 1800, endFreq: 900, duration: 0.18, type: 'sawtooth', volume: 0.15, delay: 0.05 });
+  },
+};
 
 // ---------- Base stats (before skill points) ----------
 const BASE = {
@@ -176,6 +370,9 @@ ownedPermUpgrades.forEach((id) => {
 let state = 'start'; // 'start' | 'playing' | 'paused' | 'gameover'
 let keys = {};
 let lastTime = 0;
+// Last known mouse position in canvas coordinates, used to aim the RPG.
+let mouseX = W / 2;
+let mouseY = H / 2;
 
 let player, enemies, particles, floatingTexts, rockets;
 let scenery = [];
@@ -183,6 +380,8 @@ let mist = [];
 let groundFog = [];
 let groundPatches = [];
 let forestTrees = [];
+let owls = [];
+let owlSpawnTimer = 0;
 // The bottom this fraction of the screen is treated as "the ground" for the
 // Midnight Forest's floor band, trees, and ground patches.
 const GROUND_BAND_RATIO = 0.62;
@@ -224,6 +423,7 @@ function spawnWormhole() {
 function enterWormhole() {
   currentWorldIndex = (currentWorldIndex + 1) % WORLDS.length;
   const world = WORLDS[currentWorldIndex];
+  sfx.wormhole();
 
   // small reward for braving the wormhole
   player.hp = Math.min(player.maxHp, player.hp + player.maxHp * 0.2);
@@ -319,6 +519,8 @@ function resetGame() {
   wormhole = null;
   wormholeTimer = 18 + Math.random() * 12;
   screenFlash = 0;
+  owls = [];
+  owlSpawnTimer = 6 + Math.random() * 10;
   generateScenery();
 }
 
@@ -409,15 +611,106 @@ function generateScenery() {
 }
 generateScenery();
 
+// An owl occasionally pops out of one of the Midnight Forest's trees. It
+// perches for a moment, and if the bat is nearby (and not hiding), it
+// swoops down for a surprise dive-attack before vanishing back into the
+// canopy. Exclusive to the Midnight Forest.
+const OWL_DIVE_RANGE = 260;
+const OWL_DIVE_DAMAGE = 15;
+const OWL_HIT_RADIUS = 14;
+
+function spawnOwl() {
+  if (forestTrees.length === 0) return;
+  const tree = forestTrees[Math.floor(Math.random() * forestTrees.length)];
+  const perchX = tree.x + (Math.random() - 0.5) * tree.size * 0.4;
+  const perchY = tree.y - tree.size * 1.15;
+  owls.push({
+    tree,
+    perchX,
+    perchY,
+    x: perchX,
+    y: perchY,
+    riseProgress: 0,
+    phase: 'rising',
+    holdTimer: 1.4 + Math.random() * 1.2,
+    blink: false,
+    blinkTimer: 0.8 + Math.random() * 1.5,
+    diveProgress: 0,
+    diveFromX: 0,
+    diveFromY: 0,
+    diveToX: 0,
+    diveToY: 0,
+    dove: false,
+    hasHitPlayer: false,
+  });
+  sfx.hoot();
+}
+
+function updateOwls(dt) {
+  owls.forEach((owl) => {
+    owl.blinkTimer -= dt;
+    if (owl.blinkTimer <= 0) {
+      owl.blink = !owl.blink;
+      owl.blinkTimer = owl.blink ? 0.12 : 0.8 + Math.random() * 1.8;
+    }
+
+    if (owl.phase === 'rising') {
+      owl.riseProgress = Math.min(1, owl.riseProgress + dt * 1.6);
+      if (owl.riseProgress >= 1) owl.phase = 'perched';
+    } else if (owl.phase === 'perched') {
+      owl.holdTimer -= dt;
+      if (owl.holdTimer <= 0) {
+        const distToPlayer = distance(player.x, player.y, owl.perchX, owl.perchY);
+        if (!player.hiding && player.hp > 0 && distToPlayer <= OWL_DIVE_RANGE) {
+          owl.phase = 'diving';
+          owl.dove = true;
+          owl.diveProgress = 0;
+          owl.diveFromX = owl.perchX;
+          owl.diveFromY = owl.perchY;
+          owl.diveToX = player.x;
+          owl.diveToY = player.y;
+          sfx.screech();
+        } else {
+          owl.phase = 'sinking';
+        }
+      }
+    } else if (owl.phase === 'diving') {
+      owl.diveProgress = Math.min(1, owl.diveProgress + dt * 2.2);
+      owl.x = owl.diveFromX + (owl.diveToX - owl.diveFromX) * owl.diveProgress;
+      owl.y = owl.diveFromY + (owl.diveToY - owl.diveFromY) * owl.diveProgress;
+      if (!owl.hasHitPlayer && !player.hiding && distance(owl.x, owl.y, player.x, player.y) <= player.radius + OWL_HIT_RADIUS) {
+        owl.hasHitPlayer = true;
+        player.hp -= OWL_DIVE_DAMAGE;
+        player.hitFlash = 0.2;
+        sfx.playerHurt();
+        floatingTexts.push({
+          x: player.x, y: player.y - 20, text: '-' + OWL_DIVE_DAMAGE, life: 0.5, vy: -25, color: '#ff6060',
+        });
+      }
+      if (owl.diveProgress >= 1) owl.phase = 'sinking';
+    } else if (owl.phase === 'sinking') {
+      owl.riseProgress = Math.max(0, owl.riseProgress - dt * 2.2);
+      if (owl.riseProgress <= 0) owl.dead = true;
+    }
+  });
+  owls = owls.filter((o) => !o.dead);
+}
+
+
 // ---------- Enemy factory ----------
 const ENEMY_TYPES = {
   hawk: { color: '#e05252', radius: 12, hpMult: 0.6, dmgMult: 0.8, speedMult: 1.7, xp: 6, gold: 2 },
   spider: { color: '#7bd47a', radius: 15, hpMult: 1.8, dmgMult: 0.6, speedMult: 0.8, xp: 9, gold: 4 },
   hunter: { color: '#c9c0e8', radius: 14, hpMult: 1.1, dmgMult: 1.2, speedMult: 1.1, xp: 8, gold: 5 },
+  // Exclusive to the Blood Moon Realm: fast, drains HP from the bat to heal itself on hit.
+  vampireBat: { color: '#8a1030', radius: 13, hpMult: 0.85, dmgMult: 1.2, speedMult: 2.1, xp: 11, gold: 7, lifesteal: 0.5, worldOnly: 1 },
 };
 
 function spawnEnemy() {
-  const typeKeys = Object.keys(ENEMY_TYPES);
+  const typeKeys = Object.keys(ENEMY_TYPES).filter((key) => {
+    const t = ENEMY_TYPES[key];
+    return t.worldOnly === undefined || t.worldOnly === currentWorldIndex;
+  });
   const typeKey = typeKeys[Math.floor(Math.random() * typeKeys.length)];
   const t = ENEMY_TYPES[typeKey];
 
@@ -457,6 +750,7 @@ function startWave() {
   enemiesToSpawn = 4 + wave * 2;
   waveSpawning = true;
   spawnTimer = 0;
+  sfx.waveStart();
 }
 
 // ---------- Input ----------
@@ -479,6 +773,7 @@ window.addEventListener('keydown', (e) => {
   if (key === 'e') tryUltimate();
   if (key === 'r') tryFireRpg();
   if (key === 't') setAutoAttack(!autoAttackEnabled);
+  if (key === 'm') setSoundEnabled(!soundEnabled);
   if (key === 'escape') {
     // Esc closes whichever menu is on top; if none are open, it pauses the game.
     if (rpgPanelOpen) setRpgPanel(false);
@@ -508,6 +803,8 @@ pauseShopBtn.addEventListener('click', () => { setPausePanel(false); toggleShopP
 pauseHelpBtn.addEventListener('click', () => { setPausePanel(false); toggleHelpPanel(); });
 bestiaryBtn.addEventListener('click', toggleBestiaryPanel);
 closeBestiaryBtn.addEventListener('click', () => setBestiaryPanel(false));
+soundBtn.addEventListener('click', () => setSoundEnabled(!soundEnabled));
+setSoundEnabled(soundEnabled); // sync the button label with the saved preference on load
 
 canvas.addEventListener('click', (e) => {
   if (state !== 'playing') return;
@@ -534,6 +831,7 @@ canvas.addEventListener('click', (e) => {
     const isCrit = Math.random() < player.critChance;
     const dmg = player.damage * (isCrit ? player.critMult : 1);
     damageEnemy(target, dmg, isCrit);
+    isCrit ? sfx.crit() : sfx.bite();
     player.clickAttackTimer = player.attackCooldown;
   } else if (currentWorldIndex === 0) {
     // No enemy was clicked - check whether a tree was clicked to hide/unhide.
@@ -545,6 +843,7 @@ canvas.addEventListener('click', (e) => {
       if (player.hiding && player.hidingTree === clickedTree) {
         player.hiding = false;
         player.hidingTree = null;
+        sfx.hide();
         floatingTexts.push({
           x: player.x, y: player.y - 26, text: 'Left the tree', life: 0.8, vy: -18, color: '#b7aee0',
         });
@@ -553,6 +852,7 @@ canvas.addEventListener('click', (e) => {
         if (reachable) {
           player.hiding = true;
           player.hidingTree = clickedTree;
+          sfx.hide();
           floatingTexts.push({
             x: player.x, y: player.y - 26, text: '🌲 Hidden!', life: 0.9, vy: -18, color: '#7bd47a',
           });
@@ -575,6 +875,8 @@ canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
   const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
   const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+  mouseX = mx;
+  mouseY = my;
   const hovering = enemies.some((en) => {
     if (en.dead) return false;
     if (distance(mx, my, en.x, en.y) > en.radius + 6) return false;
@@ -736,8 +1038,11 @@ function renderShop() {
       if (coins < skin.cost) return;
       coins -= skin.cost;
       saveCoins();
+      sfx.purchase();
       ownedBatSkins = [...ownedBatSkins, id];
       saveJSON('batrpg_owned_bat_skins', ownedBatSkins);
+    } else {
+      sfx.click();
     }
     equippedBatSkin = id;
     localStorage.setItem('batrpg_equipped_bat_skin', id);
@@ -750,8 +1055,11 @@ function renderShop() {
       if (coins < skin.cost) return;
       coins -= skin.cost;
       saveCoins();
+      sfx.purchase();
       ownedRpgSkins = [...ownedRpgSkins, id];
       saveJSON('batrpg_owned_rpg_skins', ownedRpgSkins);
+    } else {
+      sfx.click();
     }
     equippedRpgSkin = id;
     localStorage.setItem('batrpg_equipped_rpg_skin', id);
@@ -773,6 +1081,7 @@ function renderShop() {
         if (coins < up.cost) return;
         coins -= up.cost;
         saveCoins();
+        sfx.purchase();
         ownedPermUpgrades = [...ownedPermUpgrades, id];
         saveJSON('batrpg_owned_perm_upgrades', ownedPermUpgrades);
         up.apply();
@@ -804,15 +1113,19 @@ function renderShop() {
         if (coins < style.cost) return;
         coins -= style.cost;
         saveCoins();
+        sfx.purchase();
         ownedSpecialStyles = [...ownedSpecialStyles, id];
         saveJSON('batrpg_owned_special_styles', ownedSpecialStyles);
         if (id === 'pixel') {
           pixelStyleEnabled = true;
           localStorage.setItem('batrpg_pixel_style_enabled', 'true');
         }
-      } else if (id === 'pixel') {
-        pixelStyleEnabled = !pixelStyleEnabled;
-        localStorage.setItem('batrpg_pixel_style_enabled', String(pixelStyleEnabled));
+      } else {
+        sfx.click();
+        if (id === 'pixel') {
+          pixelStyleEnabled = !pixelStyleEnabled;
+          localStorage.setItem('batrpg_pixel_style_enabled', String(pixelStyleEnabled));
+        }
       }
       renderShop();
     });
@@ -833,6 +1146,7 @@ function renderCreatureIcon(type, color, radius) {
   const fakeEnemy = { x: 45, y: 55, radius, color, facing: 1, moveAngle: -Math.PI / 2, animPhase: 0.6 };
   if (type === 'hawk') drawHawk(fakeEnemy);
   else if (type === 'hunter') drawHunter(fakeEnemy);
+  else if (type === 'vampireBat') drawVampireBat(fakeEnemy);
   else drawSpider(fakeEnemy);
   ctx = savedCtx;
   return off.toDataURL();
@@ -850,6 +1164,10 @@ const BESTIARY_ENTRIES = {
   hunter: {
     label: 'Hunter',
     desc: 'A cloaked, clawed stalker. Well-rounded stats and the hardest-hitting of the three.',
+  },
+  vampireBat: {
+    label: 'Vampire Bat',
+    desc: 'Only seen in the Blood Moon Realm. Extremely fast, and drains HP from the bat to heal itself with every bite.',
   },
 };
 
@@ -900,6 +1218,7 @@ function renderStatList() {
         if (player.skillPoints > 0) {
           s.level += 1;
           player.skillPoints -= 1;
+          sfx.click();
           recomputeStats();
           renderStatList();
           updateHud();
@@ -933,6 +1252,7 @@ function killEnemy(enemy) {
   player.xp += enemy.xpValue;
   coins += enemy.goldValue;
   saveCoins();
+  sfx.enemyDeath();
   for (let i = 0; i < 6; i++) {
     particles.push({
       x: enemy.x, y: enemy.y,
@@ -947,6 +1267,7 @@ function killEnemy(enemy) {
     player.skillPoints += 1;
     player.xpToNext = Math.round(20 + player.level * 15);
     player.hp = Math.min(player.maxHp, player.hp + player.maxHp * 0.3);
+    sfx.levelUp();
     floatingTexts.push({
       x: player.x, y: player.y - 30, text: 'LEVEL UP!', life: 1.0, vy: -20, color: '#8a5cf5',
     });
@@ -957,6 +1278,7 @@ function tryUltimate() {
   if (state !== 'playing') return;
   if (player.ultimateTimer > 0) return;
   player.ultimateTimer = player.ultimateCooldown;
+  sfx.ultimate();
   const radius = 260;
   const dmg = 24 * player.ultimateDamageMult;
   enemies.forEach((en) => {
@@ -975,30 +1297,19 @@ function tryUltimate() {
   }
 }
 
-// Fire an RPG (rocket-propelled grenade) at the nearest enemy - a slower,
-// harder-hitting explosive shot with its own cooldown, separate from the
-// bite auto-attack and the Echo Blast ultimate.
+// Fire an RPG (rocket-propelled grenade) toward wherever the mouse is
+// aimed - a slower, harder-hitting explosive shot with its own cooldown,
+// separate from the bite auto-attack and the Echo Blast ultimate. Unlike
+// auto-attack, this does NOT auto-target - you have to aim it yourself.
 function tryFireRpg() {
   if (state !== 'playing') return;
   if (player.rpgTimer > 0) return;
   player.rpgTimer = player.rpgCooldown;
   player.rpgFlash = 0.12;
+  sfx.rocketFire();
 
-  let target = null;
-  let bestDist = Infinity;
-  enemies.forEach((en) => {
-    const d = distance(player.x, player.y, en.x, en.y);
-    if (d < bestDist) { bestDist = d; target = en; }
-  });
-
-  let dx, dy;
-  if (target) {
-    dx = target.x - player.x;
-    dy = target.y - player.y;
-  } else {
-    dx = player.facing;
-    dy = 0;
-  }
+  let dx = mouseX - player.x;
+  let dy = mouseY - player.y;
   const len = Math.hypot(dx, dy) || 1;
   dx /= len; dy /= len;
 
@@ -1015,6 +1326,7 @@ function tryFireRpg() {
 }
 
 function explodeRocket(r) {
+  sfx.explosion();
   enemies.forEach((en) => {
     if (!en.dead && distance(r.x, r.y, en.x, en.y) <= r.splash) {
       damageEnemy(en, r.damage, false);
@@ -1087,9 +1399,7 @@ function update(dt) {
       const isCrit = Math.random() < player.critChance;
       const dmg = player.damage * (isCrit ? player.critMult : 1);
       damageEnemy(target, dmg, isCrit);
-      if (isCrit) {
-        // lifesteal-esque flavor could go here later
-      }
+      isCrit ? sfx.crit() : sfx.bite();
       player.attackTimer = player.attackCooldown;
     } else {
       player.attackTimer = 0.05; // check again soon
@@ -1144,9 +1454,18 @@ function update(dt) {
         const dmg = en.damage * (WORLDS[currentWorldIndex].enemyDamageMult || 1);
         player.hp -= dmg;
         player.hitFlash = 0.2;
+        sfx.playerHurt();
         floatingTexts.push({
           x: player.x, y: player.y - 20, text: '-' + Math.round(dmg), life: 0.5, vy: -25, color: '#ff6060',
         });
+        const lifestealPct = ENEMY_TYPES[en.type] && ENEMY_TYPES[en.type].lifesteal;
+        if (lifestealPct) {
+          const healed = dmg * lifestealPct;
+          en.hp = Math.min(en.maxHp, en.hp + healed);
+          floatingTexts.push({
+            x: en.x, y: en.y - en.radius - 8, text: '+' + Math.round(healed), life: 0.5, vy: -20, color: '#8a1030',
+          });
+        }
       }
     }
     en.animPhase += dt * (6 + en.speed * 2);
@@ -1208,6 +1527,18 @@ function update(dt) {
     t.swayPhase += dt * 0.6;
   });
 
+  // an owl occasionally pops out of a tree to hoot, exclusive to the Midnight Forest
+  if (currentWorldIndex === 0) {
+    owlSpawnTimer -= dt;
+    if (owlSpawnTimer <= 0 && owls.length === 0) {
+      spawnOwl();
+      owlSpawnTimer = 10 + Math.random() * 15;
+    }
+    updateOwls(dt);
+  } else if (owls.length > 0) {
+    owls = []; // clear any owl if we left the Midnight Forest mid-appearance
+  }
+
   // wormholes: spawn occasionally, and teleport the bat to a new world on contact
   if (!wormhole) {
     wormholeTimer -= dt;
@@ -1234,6 +1565,7 @@ function update(dt) {
 
 function endGame() {
   state = 'gameover';
+  sfx.gameOver();
   if (wave > bestWave) {
     bestWave = wave;
     localStorage.setItem('batrpg_best_wave', String(bestWave));
@@ -1428,6 +1760,85 @@ function drawBackground() {
       ctx.restore();
     });
   }
+}
+
+function drawOwl(owl) {
+  const isDiving = owl.phase === 'diving' || (owl.phase === 'sinking' && owl.dove);
+  let ox, oy;
+  if (isDiving) {
+    ox = owl.x;
+    oy = owl.y;
+  } else {
+    const tr = owl.tree;
+    const canopyTopY = tr.y - tr.size * 1.15; // roughly the top of the tree's canopy cluster
+    const emergeDrop = tr.size * 0.55;
+    oy = canopyTopY + (1 - owl.riseProgress) * emergeDrop;
+    ox = owl.perchX;
+  }
+  const s = Math.max(10, owl.tree.size * 0.3);
+
+  ctx.save();
+  ctx.globalAlpha = isDiving ? 1 : Math.min(1, owl.riseProgress * 2.5);
+
+  // spread wings while diving, for a swooping-attack look
+  if (isDiving) {
+    ctx.fillStyle = '#241d18';
+    const flap = Math.max(0.06, 0.22 + Math.sin(owl.diveProgress * Math.PI * 6) * 0.3);
+    ctx.beginPath();
+    ctx.ellipse(ox - s * 0.9, oy + s * 0.1, s * 0.55, s * flap, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(ox + s * 0.9, oy + s * 0.1, s * 0.55, s * flap, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // body
+  ctx.fillStyle = '#3a2f28';
+  ctx.beginPath();
+  ctx.ellipse(ox, oy + s * 0.55, s * 0.55, s * 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // head
+  ctx.fillStyle = '#4a3d33';
+  ctx.beginPath();
+  ctx.arc(ox, oy, s * 0.55, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ear tufts
+  ctx.beginPath();
+  ctx.moveTo(ox - s * 0.35, oy - s * 0.45);
+  ctx.lineTo(ox - s * 0.52, oy - s * 0.78);
+  ctx.lineTo(ox - s * 0.14, oy - s * 0.55);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(ox + s * 0.35, oy - s * 0.45);
+  ctx.lineTo(ox + s * 0.52, oy - s * 0.78);
+  ctx.lineTo(ox + s * 0.14, oy - s * 0.55);
+  ctx.closePath();
+  ctx.fill();
+
+  // glowing eyes (squashed flat when blinking, wide open mid-dive)
+  const eyeH = owl.blink ? s * 0.05 : (isDiving ? s * 0.34 : s * 0.28);
+  ctx.fillStyle = isDiving ? '#ff6a3d' : '#ffd447';
+  ctx.beginPath(); ctx.ellipse(ox - s * 0.22, oy - s * 0.05, s * 0.22, eyeH, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(ox + s * 0.22, oy - s * 0.05, s * 0.22, eyeH, 0, 0, Math.PI * 2); ctx.fill();
+  if (!owl.blink) {
+    ctx.fillStyle = '#1a1408';
+    ctx.beginPath(); ctx.arc(ox - s * 0.22, oy - s * 0.05, s * 0.09, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ox + s * 0.22, oy - s * 0.05, s * 0.09, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // beak
+  ctx.fillStyle = '#e0a030';
+  ctx.beginPath();
+  ctx.moveTo(ox - s * 0.08, oy + s * 0.12);
+  ctx.lineTo(ox + s * 0.08, oy + s * 0.12);
+  ctx.lineTo(ox, oy + s * 0.3);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
 }
 
 // Drawn AFTER the bat/enemies so the mist visibly drifts in front of them,
@@ -1626,11 +2037,17 @@ function drawBat(p) {
   ctx.arc(3.4, -2.6, 0.6, 0, Math.PI * 2);
   ctx.fill();
 
-  // RPG launcher, held forward under the body like a little bazooka
+  // RPG launcher, held forward under the body like a little bazooka - the
+  // barrel rotates to point wherever the mouse is aimed (clamped so it
+  // always reads as "held forward", never pointing backward).
   const rpgSkin = RPG_SKINS[equippedRpgSkin] || RPG_SKINS.classic;
+  const aimAngleWorld = Math.atan2(mouseY - p.y, mouseX - p.x);
+  let aimAngleLocal = p.facing === 1 ? aimAngleWorld : Math.PI - aimAngleWorld;
+  aimAngleLocal = Math.atan2(Math.sin(aimAngleLocal), Math.cos(aimAngleLocal)); // normalize to -PI..PI
+  aimAngleLocal = Math.max(-1.1, Math.min(1.1, aimAngleLocal));
   ctx.save();
   ctx.translate(4, 9);
-  ctx.rotate(0.2);
+  ctx.rotate(aimAngleLocal);
   // tube
   ctx.fillStyle = rpgSkin.tube;
   ctx.fillRect(-2, -3, 22, 6);
@@ -1872,6 +2289,84 @@ function drawHunter(en) {
   ctx.restore();
 }
 
+// Vampire Bat: exclusive to the Blood Moon Realm. A small, fast, menacing
+// bat with tattered wings, fangs and glowing red eyes that drains the
+// player's HP to heal itself when it bites.
+function drawVampireBat(en) {
+  const r = en.radius;
+  const flap = Math.sin(en.animPhase) * 0.5 + 0.5;
+  ctx.save();
+  ctx.translate(en.x, en.y);
+  ctx.scale(en.facing, 1);
+
+  const dark = shadeColor(en.color, -40);
+
+  // tattered wings
+  const drawWing = (dir) => {
+    const spanX = r * 2.1 * dir;
+    const tipY = -r * 0.7 - flap * r * 0.9;
+    const bellyY = r * 0.5 - flap * r * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.1);
+    ctx.quadraticCurveTo(spanX * 0.4, tipY, spanX * 0.75, tipY * 0.7);
+    ctx.lineTo(spanX * 0.55, bellyY * 0.5);
+    ctx.lineTo(spanX * 0.85, bellyY);
+    ctx.lineTo(spanX * 0.3, bellyY * 0.7);
+    ctx.lineTo(0, r * 0.15);
+    ctx.closePath();
+    ctx.fillStyle = dark;
+    ctx.fill();
+  };
+  drawWing(-1);
+  drawWing(1);
+
+  // body
+  ctx.fillStyle = en.color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 0.5, r * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ears
+  ctx.fillStyle = en.color;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.35, -r * 0.5);
+  ctx.lineTo(-r * 0.5, -r * 0.95);
+  ctx.lineTo(-r * 0.1, -r * 0.6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 0.35, -r * 0.5);
+  ctx.lineTo(r * 0.5, -r * 0.95);
+  ctx.lineTo(r * 0.1, -r * 0.6);
+  ctx.closePath();
+  ctx.fill();
+
+  // glowing red eyes
+  ctx.fillStyle = '#ff2020';
+  ctx.shadowColor = '#ff2020';
+  ctx.shadowBlur = 7;
+  ctx.beginPath();
+  ctx.arc(-r * 0.18, -r * 0.05, r * 0.11, 0, Math.PI * 2);
+  ctx.arc(r * 0.18, -r * 0.05, r * 0.11, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // fangs
+  ctx.fillStyle = '#f2f0ff';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.12, r * 0.2);
+  ctx.lineTo(-r * 0.05, r * 0.42);
+  ctx.lineTo(0, r * 0.2);
+  ctx.closePath();
+  ctx.moveTo(r * 0.12, r * 0.2);
+  ctx.lineTo(r * 0.05, r * 0.42);
+  ctx.lineTo(0, r * 0.2);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
 function drawEnemy(en) {
   ctx.save();
   if (en.hitFlash > 0) {
@@ -1882,6 +2377,8 @@ function drawEnemy(en) {
     drawHawk(en);
   } else if (en.type === 'hunter') {
     drawHunter(en);
+  } else if (en.type === 'vampireBat') {
+    drawVampireBat(en);
   } else {
     drawSpider(en);
   }
@@ -1981,6 +2478,7 @@ function render() {
   if (state === 'playing' || state === 'paused' || state === 'gameover') {
     if (wormhole) drawWormhole(wormhole);
     enemies.forEach(drawEnemy);
+    owls.forEach(drawOwl);
     drawBat(player);
     rockets.forEach(drawRocket);
 
