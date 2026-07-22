@@ -110,7 +110,7 @@ canvas {
   align-items: flex-end;
 }
 
-#upgrade-btn, #help-btn, #autoattack-btn, #shop-btn {
+#upgrade-btn, #help-btn, #autoattack-btn, #shop-btn, #pause-btn {
   background: #2c2440;
   color: #eae6ff;
   border: 1px solid #5a2fc9;
@@ -121,7 +121,7 @@ canvas {
   white-space: nowrap;
 }
 
-#upgrade-btn:hover, #help-btn:hover, #autoattack-btn:hover, #shop-btn:hover {
+#upgrade-btn:hover, #help-btn:hover, #autoattack-btn:hover, #shop-btn:hover, #pause-btn:hover {
   background: #3a2f5c;
 }
 
@@ -131,6 +131,10 @@ canvas {
 
 #shop-btn {
   border-color: #ffd447;
+}
+
+#pause-btn {
+  border-color: #b7aee0;
 }
 
 #autoattack-btn {
@@ -143,7 +147,7 @@ canvas {
 }
 
 /* RPG / Help Panels */
-#rpg-panel, #help-panel {
+#rpg-panel, #help-panel, #pause-panel {
   position: absolute;
   inset: 0;
   background: rgba(2, 2, 8, 0.85);
@@ -164,7 +168,7 @@ canvas {
   z-index: 40;
 }
 
-#rpg-panel.hidden, #help-panel.hidden, #shop-panel.hidden {
+#rpg-panel.hidden, #help-panel.hidden, #shop-panel.hidden, #pause-panel.hidden {
   display: none;
 }
 
@@ -355,7 +359,7 @@ canvas {
   cursor: not-allowed;
 }
 
-#close-panel, #close-help, #close-shop {
+#close-panel, #close-help, #close-shop, #resume-btn {
   margin-top: 16px;
   background: #5a2fc9;
   color: #fff;
@@ -363,6 +367,40 @@ canvas {
   padding: 8px 16px;
   border-radius: 6px;
   cursor: pointer;
+}
+
+.pause-links {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.pause-links button {
+  background: #17122a;
+  color: #eae6ff;
+  border: 1px solid #2c2440;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pause-links button:hover {
+  background: #241f3d;
+}
+
+#resume-btn {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  font-size: 15px;
+  padding: 10px 24px;
+}
+
+#pause-panel .panel-inner {
+  text-align: center;
 }
 
 /* Overlays */

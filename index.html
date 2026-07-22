@@ -33,10 +33,25 @@
     </div>
 
     <div id="action-buttons">
+      <button id="pause-btn" title="Pause the game (Esc)">⏸ Pause (Esc)</button>
       <button id="shop-btn" title="Open the coin shop">🛒 Shop</button>
       <button id="autoattack-btn" title="Toggle auto-attack on/off (T)">🦇 Auto-Attack: ON</button>
       <button id="upgrade-btn" title="Open upgrade menu (U)">📖 Upgrade (U)</button>
       <button id="help-btn" title="Show controls / directions (H)">❓ How to Play (H)</button>
+    </div>
+
+    <!-- Pause Panel -->
+    <div id="pause-panel" class="hidden">
+      <div class="panel-inner">
+        <h2>⏸ Paused</h2>
+        <p class="stat-desc">Wave <span id="pause-wave">1</span> • Level <span id="pause-level">1</span> • 🪙 <span id="pause-coins">0</span></p>
+        <div class="pause-links">
+          <button id="pause-upgrade-btn">📖 Upgrade</button>
+          <button id="pause-shop-btn">🛒 Shop</button>
+          <button id="pause-help-btn">❓ How to Play</button>
+        </div>
+        <button id="resume-btn">▶ Resume (Esc)</button>
+      </div>
     </div>
 
     <!-- RPG Upgrade Panel -->
@@ -61,6 +76,7 @@
           <li><b>U</b> — Open the Upgrade menu to spend Skill Points on stats</li>
           <li><b>H</b> — Open this Help screen</li>
           <li><b>P</b> — Open the Coin Shop to buy skins and permanent upgrades with coins</li>
+          <li><b>Esc</b> — Pause the game (or close whichever menu is open)</li>
         </ul>
         <h3>Goal</h3>
         <p class="stat-desc">Survive endless waves of hawks, spiders and hunters. Defeating enemies grants XP (levels you up and grants Skill Points) and gold. Spend Skill Points in the Upgrade menu on Vitality, Strength, Agility, Focus and Echo Power to grow stronger and push further.</p>

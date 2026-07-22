@@ -44,6 +44,15 @@ const shopCoinsEl = document.getElementById('shop-coins');
 const batSkinListEl = document.getElementById('bat-skin-list');
 const rpgSkinListEl = document.getElementById('rpg-skin-list');
 const permUpgradeListEl = document.getElementById('perm-upgrade-list');
+const pauseBtn = document.getElementById('pause-btn');
+const pausePanel = document.getElementById('pause-panel');
+const resumeBtn = document.getElementById('resume-btn');
+const pauseUpgradeBtn = document.getElementById('pause-upgrade-btn');
+const pauseShopBtn = document.getElementById('pause-shop-btn');
+const pauseHelpBtn = document.getElementById('pause-help-btn');
+const pauseWaveEl = document.getElementById('pause-wave');
+const pauseLevelEl = document.getElementById('pause-level');
+const pauseCoinsEl = document.getElementById('pause-coins');
 
 // ---------- Base stats (before skill points) ----------
 const BASE = {
@@ -326,6 +335,13 @@ window.addEventListener('keydown', (e) => {
   if (key === 'e') tryUltimate();
   if (key === 'r') tryFireRpg();
   if (key === 't') setAutoAttack(!autoAttackEnabled);
+  if (key === 'escape') {
+    // Esc closes whichever menu is on top; if none are open, it pauses the game.
+    if (rpgPanelOpen) setRpgPanel(false);
+    else if (helpPanelOpen) setHelpPanel(false);
+    else if (shopPanelOpen) setShopPanel(false);
+    else togglePausePanel();
+  }
 });
 window.addEventListener('keyup', (e) => {
   keys[e.key.toLowerCase()] = false;
@@ -340,6 +356,11 @@ shopBtn.addEventListener('click', toggleShopPanel);
 shopBtnStart.addEventListener('click', toggleShopPanel);
 shopBtnGameover.addEventListener('click', toggleShopPanel);
 closeShopBtn.addEventListener('click', () => setShopPanel(false));
+pauseBtn.addEventListener('click', togglePausePanel);
+resumeBtn.addEventListener('click', () => setPausePanel(false));
+pauseUpgradeBtn.addEventListener('click', () => { setPausePanel(false); toggleRpgPanel(); });
+pauseShopBtn.addEventListener('click', () => { setPausePanel(false); toggleShopPanel(); });
+pauseHelpBtn.addEventListener('click', () => { setPausePanel(false); toggleHelpPanel(); });
 
 canvas.addEventListener('click', (e) => {
   if (state !== 'playing') return;
@@ -401,17 +422,18 @@ restartBtn.addEventListener('click', () => {
   startWave();
 });
 
-// The Upgrade, Help and Shop panels all pause the game while open, and are
-// mutually exclusive (opening one closes the others). Game state only
-// resumes to 'playing' once every panel is closed. The Shop is also
+// The Upgrade, Help, Shop and Pause panels all pause the game while open,
+// and are mutually exclusive (opening one closes the others). Game state
+// only resumes to 'playing' once every panel is closed. The Shop is also
 // reachable from the start/game-over screens, where state isn't touched.
 let rpgPanelOpen = false;
 let helpPanelOpen = false;
 let shopPanelOpen = false;
+let pausePanelOpen = false;
 
 function syncPauseState() {
   if (state !== 'playing' && state !== 'paused') return;
-  state = (rpgPanelOpen || helpPanelOpen || shopPanelOpen) ? 'paused' : 'playing';
+  state = (rpgPanelOpen || helpPanelOpen || shopPanelOpen || pausePanelOpen) ? 'paused' : 'playing';
 }
 
 function setRpgPanel(open) {
@@ -425,6 +447,7 @@ function toggleRpgPanel() {
   if (!rpgPanelOpen) {
     if (helpPanelOpen) setHelpPanel(false);
     if (shopPanelOpen) setShopPanel(false);
+    if (pausePanelOpen) setPausePanel(false);
   }
   setRpgPanel(!rpgPanelOpen);
 }
@@ -439,6 +462,7 @@ function toggleHelpPanel() {
   if (!helpPanelOpen) {
     if (rpgPanelOpen) setRpgPanel(false);
     if (shopPanelOpen) setShopPanel(false);
+    if (pausePanelOpen) setPausePanel(false);
   }
   setHelpPanel(!helpPanelOpen);
 }
@@ -454,8 +478,29 @@ function toggleShopPanel() {
   if (!shopPanelOpen) {
     if (rpgPanelOpen) setRpgPanel(false);
     if (helpPanelOpen) setHelpPanel(false);
+    if (pausePanelOpen) setPausePanel(false);
   }
   setShopPanel(!shopPanelOpen);
+}
+
+function setPausePanel(open) {
+  pausePanelOpen = open;
+  pausePanel.classList.toggle('hidden', !open);
+  if (open && player) {
+    pauseWaveEl.textContent = wave;
+    pauseLevelEl.textContent = player.level;
+    pauseCoinsEl.textContent = coins;
+  }
+  syncPauseState();
+}
+function togglePausePanel() {
+  if (state !== 'playing' && state !== 'paused') return;
+  if (!pausePanelOpen) {
+    if (rpgPanelOpen) setRpgPanel(false);
+    if (helpPanelOpen) setHelpPanel(false);
+    if (shopPanelOpen) setShopPanel(false);
+  }
+  setPausePanel(!pausePanelOpen);
 }
 
 function renderShop() {
