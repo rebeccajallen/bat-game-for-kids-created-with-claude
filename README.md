@@ -1,6 +1,8 @@
 # 🦇 Bat RPG - Night Survivor
 
-A kid's Bat game we built together to explore **vibe coding** — building a working game entirely through conversation with an AI coding assistant, no manual coding required.
+A kid's Bat game we built together to explore **agentic coding** — building a working game entirely through conversation with an AI coding assistant, no manual coding required.
+
+Computer Science Education is a passion of mine so I am posting this here so we can watch and share as the kids' games evolves.
 
 Play as a bat surviving waves of night creatures. Auto-attack enemies, collect XP and gold, level up, and spend skill points on RPG-style stats (Vitality, Strength, Agility, Focus, Echo Power) to grow stronger and push further into the night.
 
