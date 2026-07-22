@@ -196,7 +196,7 @@ bestWaveEl.textContent = bestWave;
 // with its own night-sky palette, and the bat gets a small reward.
 const WORLDS = [
   { name: 'Midnight Forest', skyTop: '#1d1636', skyMid: '#120c22', skyBottom: '#07050f', mist: '200,200,255', moon: '#f0edd8' },
-  { name: 'Blood Moon Realm', skyTop: '#3d1414', skyMid: '#220b12', skyBottom: '#0f0508', mist: '255,150,150', moon: '#ff8a8a', tint: 'rgba(120,20,20,0.12)', moonX: 0.5, moonY: 60, moonR: 58 },
+  { name: 'Blood Moon Realm', skyTop: '#3d1414', skyMid: '#220b12', skyBottom: '#0f0508', mist: '255,150,150', moon: '#ff8a8a', tint: 'rgba(120,20,20,0.12)', moonX: 0.5, moonY: 60, moonR: 58, enemyDamageMult: 1.5 },
   { name: 'Toxic Swamp', skyTop: '#123420', skyMid: '#0b2214', skyBottom: '#050f08', mist: '150,255,180', moon: '#c8ff9a', tint: 'rgba(30,120,50,0.12)' },
   { name: 'Crystal Cavern', skyTop: '#132a3d', skyMid: '#0b1b2a', skyBottom: '#050d14', mist: '160,220,255', moon: '#9adcff', tint: 'rgba(40,110,170,0.12)' },
   { name: 'Golden Dusk', skyTop: '#3a2f10', skyMid: '#231b0a', skyBottom: '#100c04', mist: '255,220,150', moon: '#ffe08a', tint: 'rgba(150,110,20,0.1)' },
@@ -1141,10 +1141,11 @@ function update(dt) {
       en.attackTimer -= dt;
       if (en.attackTimer <= 0) {
         en.attackTimer = en.attackCooldown;
-        player.hp -= en.damage;
+        const dmg = en.damage * (WORLDS[currentWorldIndex].enemyDamageMult || 1);
+        player.hp -= dmg;
         player.hitFlash = 0.2;
         floatingTexts.push({
-          x: player.x, y: player.y - 20, text: '-' + Math.round(en.damage), life: 0.5, vy: -25, color: '#ff6060',
+          x: player.x, y: player.y - 20, text: '-' + Math.round(dmg), life: 0.5, vy: -25, color: '#ff6060',
         });
       }
     }
